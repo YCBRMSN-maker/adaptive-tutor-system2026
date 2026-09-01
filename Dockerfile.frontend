@@ -1,8 +1,9 @@
 # 使用Node.js作为基础镜像来安装Playwright
 FROM node:18-alpine
 
-# 安装必要的依赖
-RUN apk add --no-cache \
+# 安装必要的依赖（先把 apk 源换成国内阿里云镜像，避免 dl-cdn.alpinelinux.org 在国内慢）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
+    && apk add --no-cache \
     chromium \
     nss \
     freetype \

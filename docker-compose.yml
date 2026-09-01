@@ -16,6 +16,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: ats-exp-backend
+    env_file: .env
     ports:
       - "8000:8000"
     environment:
@@ -38,6 +39,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: ats-exp-celery-chat-worker
+    env_file: .env
     command: celery -A app.celery_app worker -l info -Q chat_queue --pool=prefork -n ai_worker@%h -c 2
     environment:
       - REDIS_URL=redis://redis:6379/0
@@ -58,6 +60,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: ats-exp-celery-submit-worker
+    env_file: .env
     command: celery -A app.celery_app worker -l info -Q submit_queue --pool=prefork -n submit_worker@%h -c 2
     environment:
       - REDIS_URL=redis://redis:6379/0
@@ -78,6 +81,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: ats-exp-celery-db-worker
+    env_file: .env
     command: celery -A app.celery_app worker -l info -Q db_writer_queue --pool=gevent -n db_worker@%h -c 10
     environment:
       - REDIS_URL=redis://redis:6379/0
@@ -98,6 +102,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: ats-exp-celery-behavior-worker
+    env_file: .env
     command: celery -A app.celery_app worker -l info -Q behavior_queue --pool=prefork -n behavior_worker@%h -c 2
     environment:
       - REDIS_URL=redis://redis:6379/0
@@ -118,6 +123,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: ats-exp-celery-beat
+    env_file: .env
     command: celery -A app.celery_app beat -l info
     environment:
       - REDIS_URL=redis://redis:6379/0
