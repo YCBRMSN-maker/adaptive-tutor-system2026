@@ -4,9 +4,9 @@ from app.schemas.response import StandardResponse
 import re
 
 class KnowledgeGraphNodeData(BaseModel):
-    """知识图谱节点数据模型
+    """章节路径图节点数据模型
     
-    定义知识图谱中单个节点的数据内容，采用Cypher.js兼容格式。
+    定义章节路径图中单个节点的数据内容，采用Cypher.js兼容格式。
     
     Attributes:
         id: 节点唯一标识符
@@ -36,9 +36,9 @@ class KnowledgeGraphNodeData(BaseModel):
         return v.strip()
 
 class KnowledgeGraphNode(BaseModel):
-    """知识图谱节点模型
+    """章节路径图节点模型
     
-    知识图谱中的节点结构，包含节点数据对象。
+    章节路径图中的节点结构，包含节点数据对象。
     这种结构是为了与Cypher.js等图形库兼容。
     
     Attributes:
@@ -47,9 +47,9 @@ class KnowledgeGraphNode(BaseModel):
     data: KnowledgeGraphNodeData
 
 class KnowledgeGraphEdgeData(BaseModel):
-    """知识图谱边数据模型
+    """章节路径图边数据模型
     
-    定义知识图谱中边的连接关系，采用Cypher.js兼容格式。
+    定义章节路径图中边的连接关系，采用Cypher.js兼容格式。
     
     Attributes:
         source: 源节点ID
@@ -79,9 +79,9 @@ class KnowledgeGraphEdgeData(BaseModel):
         return v
 
 class KnowledgeGraphEdge(BaseModel):
-    """知识图谱边模型
+    """章节路径图边模型
     
-    知识图谱中的边结构，表示节点间的连接关系。
+    章节路径图中的边结构，表示节点间的连接关系。
     这种结构是为了与Cypher.js等图形库兼容。
     
     Attributes:
@@ -90,14 +90,14 @@ class KnowledgeGraphEdge(BaseModel):
     data: KnowledgeGraphEdgeData
 
 class KnowledgeGraph(BaseModel):
-    """知识图谱模型
+    """章节路径图模型
     
-    完整的知识图谱结构，包含所有节点和边。
+    完整的章节路径图结构，包含所有节点和边。
     
     Attributes:
-        nodes: 节点列表，包含所有知识点节点
+        nodes: 节点列表，包含所有章节节点
         edges: 边列表，包含所有节点间的连接关系
-        dependent_edges: 依赖边列表，包含知识点间的依赖关系
+        dependent_edges: 依赖边列表，包含章节间的依赖关系
         metadata: 图谱元数据（可选）
     """
     nodes: List[KnowledgeGraphNode] = Field(..., description="节点列表")
