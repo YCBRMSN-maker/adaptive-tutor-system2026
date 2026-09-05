@@ -7,6 +7,7 @@ import { decryptWithTimestamp } from '../modules/encryption.js';
 import tracker from '../modules/behavior_tracker.js';
 import chatModule from '../modules/chat.js';
 import websocket from '../modules/websocket_client.js';
+import { showSectionFeedback } from '../modules/section_feedback.js';
 
 // 用于存储WebSocket订阅回调的引用，避免重复订阅
 let submissionCallbackRef = null;
@@ -16,6 +17,10 @@ let aiAskCount = 0;
 let submissionCount = 0;
 let failedSubmissionCount = 0;
 let chatResultCallbackRef = null;
+
+// 用于小节/章节反馈：记录本次测试过程中历次失败详情与最近一次失败时的代码快照
+let sessionFailedDetails = [];
+let lastFailedCode = null;
 
 // 添加一个标志位，用于跟踪是否已经在本次提交后触发过AI主动询问
 let hasTriggeredAssistanceAfterSubmission = false;
@@ -137,6 +142,11 @@ function extendChatModuleForSmartHints(topicId) {
         // 添加用户消息到UI
         this.addMessageToUI('user', message);
 
+        // 创建AI占位元素
+        const aiEl = this.addMessageToUI('ai', "");
+        this.streamElement = aiEl;
+        this.aiMessageBuffer = "";
+
         // 设置加载状态
         this.setLoadingState(true);
 
@@ -162,7 +172,12 @@ function extendChatModuleForSmartHints(topicId) {
             }
 
             // 使用封装的 apiClient 发送请求
-            await window.apiClient.post('/chat/ai/chat2', requestBody);
+            const response = await window.apiClient.post('/chat/ai/chat2', requestBody);
+
+            // 启动轮询回退机制
+            if (response && response.data && response.data.task_id) {
+                this._startPollingFallback(response.data.task_id, mode, contentId);
+            }
         } catch (error) {
             console.error('[ChatModule] 发送消息时出错:', error);
             this.addMessageToUI('ai', `抱歉，我无法回答你的问题。错误信息: ${error.message}`);
@@ -182,6 +197,21 @@ function extendChatModuleForSmartHints(topicId) {
         if (!msg.passed) {
             failedSubmissionCount++;
             console.log(`提交失败次数: ${failedSubmissionCount}`);
+
+            // 记录失败详情（供小节/章节反馈的错误总结使用）
+            if (msg.details && msg.details.length) {
+                sessionFailedDetails.push(...msg.details);
+            }
+            // 记录最近一次失败时的代码快照（供高频错误代码提取使用）
+            try {
+                lastFailedCode = {
+                    html: window.editorState?.htmlEditor?.getValue() || '',
+                    css: window.editorState?.cssEditor?.getValue() || '',
+                    js: window.editorState?.jsEditor?.getValue() || ''
+                };
+            } catch (e) {
+                console.warn('[TestPage] 记录失败代码快照失败:', e);
+            }
         }
 
         // 重置AI主动询问触发标志位
@@ -688,6 +718,20 @@ function setupSubmitLogic() {
                 if (!msg.passed) {
                     failedSubmissionCount++;
                     console.log(`[SubmitModule] 提交失败次数: ${failedSubmissionCount}`);
+
+                    // 记录失败详情与代码快照（供小节/章节反馈的错误总结使用）
+                    if (msg.details && msg.details.length) {
+                        sessionFailedDetails.push(...msg.details);
+                    }
+                    try {
+                        lastFailedCode = {
+                            html: window.editorState?.htmlEditor?.getValue() || '',
+                            css: window.editorState?.cssEditor?.getValue() || '',
+                            js: window.editorState?.jsEditor?.getValue() || ''
+                        };
+                    } catch (e) {
+                        console.warn('[TestPage] 记录失败代码快照失败:', e);
+                    }
                 }
                 if (msg.passed) {
                     // 获取当前topic参数
@@ -695,15 +739,30 @@ function setupSubmitLogic() {
                     let currentTopicId = topicData && topicData.id ? topicData.id : null;
 
                     if (currentTopicId) {
-                        // 标记当前知识点为已学习
-                        markKnowledgeAsLearned(currentTopicId);
+                        // ===== 小节/章节反馈：测试通过后弹出反馈弹窗 =====
+                        const feedbackType = currentTopicId.endsWith('_end') ? 'chapter' : 'section';
+                        const chapterNum = parseInt(currentTopicId.split('_')[0], 10);
+                        const rawLabel = getKnowledgeLabel(currentTopicId);
+                        const topicLabel = rawLabel && rawLabel !== currentTopicId
+                            ? rawLabel
+                            : (feedbackType === 'chapter' ? `第${chapterNum}章章节测试` : '');
 
-                        // 检查是否是章节的最后一个测试
-                        const isLastTestInChapter = isLastTestInCurrentChapter(currentTopicId);
+                        showSectionFeedback({
+                            topicId: currentTopicId,
+                            topicLabel: topicLabel,
+                            feedbackType: feedbackType,
+                            submissionMsg: msg,
+                            failedSubmissionCount: failedSubmissionCount,
+                            accumulatedFailures: sessionFailedDetails,
+                            lastFailedCode: lastFailedCode,
+                            task: window.currentTaskData || null,
+                        }).then(() => {
+                            // 反馈结束后，标记当前知识点为已学习
+                            markKnowledgeAsLearned(currentTopicId);
 
-                        // # TODO: 冲突，以下为enqi
-                        // 测试通过后的跳转逻辑
-                        handleTestSuccess(currentTopicId);
+                            // 测试通过后的跳转逻辑
+                            handleTestSuccess(currentTopicId);
+                        });
                     } else {
                         // 检查是否是跳跃学习失败的情况
                         if (window.isJumpLearningFailure) {

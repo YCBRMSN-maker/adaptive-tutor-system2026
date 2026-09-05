@@ -12,6 +12,7 @@ logger=logging.getLogger(__name__)
 @celery_app.task(bind=True)
 def process_chat_request(self,request_data: dict):
     db = SessionLocal()
+    full_response = ""
     try:
         controller = get_dynamic_controller()
         # 将 db 会话传递给需要它的服务方法
@@ -32,7 +33,7 @@ def process_chat_request(self,request_data: dict):
             db=db,
             background_tasks=None  # Celery任务中不使用FastAPI的BackgroundTasks
         ):
-        # 注意：响应结果会自动存储在Celery的result backend中
+            full_response += trunk
             message = SocketResponse2(
                 type="streaming",
                 taskid=self.request.id,
@@ -48,7 +49,23 @@ def process_chat_request(self,request_data: dict):
             message="结束",
         )
         redis_client.publish(f"ws:user:{request_data['participant_id']}",  message.model_dump_json() )
-        #logger.info("已public到Redis")
-        #return response.model_dump()
+        # 返回完整响应，供结果查询端点使用
+        return {"ai_response": full_response}
+    except Exception as e:
+        logger.error(f"处理聊天请求失败: {e}", exc_info=True)
+        try:
+            redis_client = get_redis_client()
+            error_message = SocketResponse2(
+                type="error",
+                taskid=self.request.id,
+                timestamp=datetime.now(timezone.utc),
+                message=f"抱歉，生成回复时出现错误：{str(e)}",
+                error=str(e),
+            )
+            redis_client.publish(f"ws:user:{request_data['participant_id']}", error_message.model_dump_json())
+        except Exception as publish_error:
+            logger.error(f"发布错误消息到Redis失败: {publish_error}")
+        # 重新抛出异常，让Celery结果后端标记任务为失败
+        raise
     finally:
         db.close()

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # OpenAI (for chat completions)
     TUTOR_OPENAI_API_KEY: str = "ms-6dd28633-156b-41d3-9b05-95ae310dfd60"
-    TUTOR_OPENAI_MODEL: str = "deepseek-ai/DeepSeek-V3.1"
+    TUTOR_OPENAI_MODEL: str = "Qwen/Qwen3-30B-A3B-Instruct-2507"
     TUTOR_OPENAI_API_BASE: str = "https://api-inference.modelscope.cn/v1"
 
 
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     PROGRESS_CLUSTERING_MODEL_DIR: str = "./models/progress_clustering"
 
     # LLM Settings
-    LLM_MAX_TOKENS: int = 65536
+    LLM_MAX_TOKENS: int = 32768
     LLM_TEMPERATURE: float = 0.7
 
     # Module enable/disable flags
@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     ENABLE_SENTIMENT_ANALYSIS: bool = True
     ENABLE_CLUSTERING_SERVICE: bool = True
     ENABLE_TRANSLATION_SERVICE: bool = False
+    ENABLE_SOCRATIC_METHOD: bool = True
     
     # Redis 配置
     REDIS_URL: str = "redis://localhost:6380/0"

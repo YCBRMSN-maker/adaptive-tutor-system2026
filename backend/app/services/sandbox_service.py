@@ -48,6 +48,42 @@ class SandboxService:
         """
         self._playwright_manager = playwright_manager or DefaultPlaywrightManager()
         self._headless = headless
+        # 复用的浏览器实例，避免每次评测都重新启动Chromium（启动耗时2-5秒）
+        self._browser = None
+        self._playwright = None
+
+    def _ensure_browser(self):
+        """
+        惰性启动并复用浏览器实例。
+
+        首次调用时启动Chromium，后续评测直接复用同一实例，
+        每次评测只需新建/关闭页面（毫秒级），大幅提升提交批改速度。
+        """
+        if self._browser is not None and self._browser.is_connected():
+            return self._browser
+
+        # 浏览器不存在或已断开，重新启动
+        try:
+            if self._playwright is None:
+                self._playwright = self._playwright_manager.__enter__()
+            self._browser = self._playwright.chromium.launch(
+                headless=self._headless,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--disable-gpu'
+                ]
+            )
+        except Exception:
+            # 启动失败时清理状态，下次重试
+            self._browser = None
+            self._playwright = None
+            raise
+        return self._browser
 
     def run_evaluation(self, user_code: Dict[str, str], checkpoints: List[Dict[str, Any]], topic_id: str = None) -> Dict[str, Any]:
         """
@@ -75,157 +111,145 @@ class SandboxService:
         results = []
         passed_all = True
 
-        browser = None
         page = None
         try:
-            with self._playwright_manager as p:
-                browser = p.chromium.launch(
-                    headless=self._headless,
-                    args=[
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
-                        '--no-first-run',
-                        '--no-zygote',
-                        '--disable-gpu'
-                    ]
-                )
-                page = browser.new_page()
+            # 复用浏览器实例（首次调用时启动，后续直接复用）
+            browser = self._ensure_browser()
+            page = browser.new_page()
 
-                # 根据模式构建HTML结构
-                if raw_html_mode:
-                    # Raw HTML模式：直接使用用户的完整HTML代码，不做任何修改
-                    full_html = user_code.get('html', '')
+            # 根据模式构建HTML结构
+            if raw_html_mode:
+                # Raw HTML模式：直接使用用户的完整HTML代码，不做任何修改
+                full_html = user_code.get('html', '')
 
-                    # 如果用户没有写任何内容，添加一个标记以便检查点识别
-                    if not full_html.strip():
-                        # 用户什么都没写，使用一个特殊的空页面
-                        full_html = '<html><head></head><body data-empty="true"></body></html>'
+                # 如果用户没有写任何内容，添加一个标记以便检查点识别
+                if not full_html.strip():
+                    # 用户什么都没写，使用一个特殊的空页面
+                    full_html = '<html><head></head><body data-empty="true"></body></html>'
 
-                    # 在Raw模式下，需要将CSS和JS也整合到HTML中
+                # 在Raw模式下，需要将CSS和JS也整合到HTML中
+                css_content = user_code.get('css', '')
+                js_content = user_code.get('js', '')
+
+                # 将用户原始HTML传递给页面，供检查点使用
+                full_html_with_script = full_html + f'<script>window.userOriginalHTML = {repr(user_code.get("html", ""))}</script>'
+
+                # 注入CSS和JS
+                if css_content:
+                    # 在<head>标签中添加<style>标签
+                    if '<head>' in full_html_with_script:
+                        full_html_with_script = full_html_with_script.replace(
+                            '<head>',
+                            f'<head><style>{css_content}</style>',
+                            1
+                        )
+                    else:
+                        # 如果没有<head>标签，添加一个
+                        full_html_with_script = full_html_with_script.replace(
+                            '<html',
+                            f'<html><head><style>{css_content}</style></head>',
+                            1
+                        )
+
+                if js_content:
+                    # 在</body>标签前添加<script>标签
+                    if '</body>' in full_html_with_script:
+                        full_html_with_script = full_html_with_script.replace(
+                            '</body>',
+                            f'<script>{js_content}</script></body>',
+                            1
+                        )
+                    else:
+                        # 如果没有</body>标签，添加一个
+                        full_html_with_script = full_html_with_script + f'<script>{js_content}</script>'
+
+                # 在Raw模式下也需要设置页面内容
+                page.set_content(full_html_with_script, wait_until="load")  # 等待页面加载完成
+            else:
+                # 标准沙箱模式：将用户代码嵌入到标准模板中
+                # 检查用户代码是否已经包含完整的HTML结构
+                user_html = user_code.get('html', '')
+                if (user_html.strip().startswith('<!DOCTYPE html>') or 
+                    user_html.strip().startswith('<html') or
+                    '<html' in user_html.lower()):
+                    # 用户代码已经包含HTML结构，直接使用
+                    full_html = user_html
+                    
+                    # 注入CSS和JS到现有HTML中
                     css_content = user_code.get('css', '')
                     js_content = user_code.get('js', '')
-
-                    # 将用户原始HTML传递给页面，供检查点使用
-                    full_html_with_script = full_html + f'<script>window.userOriginalHTML = {repr(user_code.get("html", ""))}</script>'
-
-                    # 注入CSS和JS
+                    
+                    # 如果有CSS内容，尝试添加到<head>中
                     if css_content:
-                        # 在<head>标签中添加<style>标签
-                        if '<head>' in full_html_with_script:
-                            full_html_with_script = full_html_with_script.replace(
-                                '<head>',
-                                f'<head><style>{css_content}</style>',
-                                1
-                            )
+                        if '<head>' in full_html:
+                            # 确保只替换第一个<head>标签
+                            head_pos = full_html.find('<head>')
+                            head_end_pos = full_html.find('>', head_pos) + 1
+                            full_html = full_html[:head_end_pos] + f'<style>{css_content}</style>' + full_html[head_end_pos:]
                         else:
-                            # 如果没有<head>标签，添加一个
-                            full_html_with_script = full_html_with_script.replace(
-                                '<html',
-                                f'<html><head><style>{css_content}</style></head>',
-                                1
-                            )
-
-                    if js_content:
-                        # 在</body>标签前添加<script>标签
-                        if '</body>' in full_html_with_script:
-                            full_html_with_script = full_html_with_script.replace(
-                                '</body>',
-                                f'<script>{js_content}</script></body>',
-                                1
-                            )
+                            # 如果没有<head>，尝试添加到<html>后
+                            html_pos = full_html.find('<html')
+                            html_end_pos = full_html.find('>', html_pos) + 1
+                            full_html = full_html[:html_end_pos] + f'<head><style>{css_content}</style></head>' + full_html[html_end_pos:]
+                    
+                    # 如果有JS内容，尝试添加到</body>前或</html>前
+                    if js_content or True:  # 总是添加alert拦截脚本
+                        # 添加alert拦截脚本
+                        alert_script = """\n<script>\nwindow.__alertMessages = [];\nwindow.alert = function (msg) {\n    window.__alertMessages.push(msg);\n};\n</script>"""
+                        
+                        js_to_inject = alert_script
+                        if js_content:
+                            js_to_inject += f'\n<script>{js_content}</script>'
+                        
+                        if '</body>' in full_html:
+                            # 在</body>标签前插入JS
+                            body_end_pos = full_html.rfind('</body>')
+                            full_html = full_html[:body_end_pos] + js_to_inject + full_html[body_end_pos:]
+                        elif '</html>' in full_html:
+                            # 在</html>标签前插入JS
+                            html_end_pos = full_html.rfind('</html>')
+                            full_html = full_html[:html_end_pos] + js_to_inject + full_html[html_end_pos:]
                         else:
-                            # 如果没有</body>标签，添加一个
-                            full_html_with_script = full_html_with_script + f'<script>{js_content}</script>'
-
-                    # 在Raw模式下也需要设置页面内容
-                    page.set_content(full_html_with_script, wait_until="load")  # 等待页面加载完成
+                            # 如果都没有，直接追加
+                            full_html = full_html + js_to_inject
                 else:
-                    # 标准沙箱模式：将用户代码嵌入到标准模板中
-                    # 检查用户代码是否已经包含完整的HTML结构
-                    user_html = user_code.get('html', '')
-                    if (user_html.strip().startswith('<!DOCTYPE html>') or 
-                        user_html.strip().startswith('<html') or
-                        '<html' in user_html.lower()):
-                        # 用户代码已经包含HTML结构，直接使用
-                        full_html = user_html
-                        
-                        # 注入CSS和JS到现有HTML中
-                        css_content = user_code.get('css', '')
-                        js_content = user_code.get('js', '')
-                        
-                        # 如果有CSS内容，尝试添加到<head>中
-                        if css_content:
-                            if '<head>' in full_html:
-                                # 确保只替换第一个<head>标签
-                                head_pos = full_html.find('<head>')
-                                head_end_pos = full_html.find('>', head_pos) + 1
-                                full_html = full_html[:head_end_pos] + f'<style>{css_content}</style>' + full_html[head_end_pos:]
-                            else:
-                                # 如果没有<head>，尝试添加到<html>后
-                                html_pos = full_html.find('<html')
-                                html_end_pos = full_html.find('>', html_pos) + 1
-                                full_html = full_html[:html_end_pos] + f'<head><style>{css_content}</style></head>' + full_html[html_end_pos:]
-                        
-                        # 如果有JS内容，尝试添加到</body>前或</html>前
-                        if js_content or True:  # 总是添加alert拦截脚本
-                            # 添加alert拦截脚本
-                            alert_script = """\n<script>\nwindow.__alertMessages = [];\nwindow.alert = function (msg) {\n    window.__alertMessages.push(msg);\n};\n</script>"""
-                            
-                            js_to_inject = alert_script
-                            if js_content:
-                                js_to_inject += f'\n<script>{js_content}</script>'
-                            
-                            if '</body>' in full_html:
-                                # 在</body>标签前插入JS
-                                body_end_pos = full_html.rfind('</body>')
-                                full_html = full_html[:body_end_pos] + js_to_inject + full_html[body_end_pos:]
-                            elif '</html>' in full_html:
-                                # 在</html>标签前插入JS
-                                html_end_pos = full_html.rfind('</html>')
-                                full_html = full_html[:html_end_pos] + js_to_inject + full_html[html_end_pos:]
-                            else:
-                                # 如果都没有，直接追加
-                                full_html = full_html + js_to_inject
-                    else:
-                        # 用户代码不包含HTML结构，使用标准模板
-                        full_html = f"""<!DOCTYPE html>
-                                        <html>
-                                        <head>
-                                            <meta charset="UTF-8">
-                                            <style>{user_code.get('css', '')}</style>
-                                        </head>
-                                        <body>
-                                            {user_code.get('html', '')}
-                                            <script>
-                                            window.__alertMessages = [];
-                                            window.alert = function (msg) {{
-                                                window.__alertMessages.push(msg);
-                                            }};
-                                            </script>
-                                            <script>{user_code.get('js', '')}</script>
-                                        </body>
-                                        </html>"""
-                    page.set_content(full_html, wait_until="load")  # 等待页面加载完成
+                    # 用户代码不包含HTML结构，使用标准模板
+                    full_html = f"""<!DOCTYPE html>
+                                    <html>
+                                    <head>
+                                        <meta charset="UTF-8">
+                                        <style>{user_code.get('css', '')}</style>
+                                    </head>
+                                    <body>
+                                        {user_code.get('html', '')}
+                                        <script>
+                                        window.__alertMessages = [];
+                                        window.alert = function (msg) {{
+                                            window.__alertMessages.push(msg);
+                                        }};
+                                        </script>
+                                        <script>{user_code.get('js', '')}</script>
+                                    </body>
+                                    </html>"""
+                page.set_content(full_html, wait_until="load")  # 等待页面加载完成
 
-                for i, cp in enumerate(checkpoints):
-                    passed, detail = self._evaluate_checkpoint(page, cp)
-                    if not passed:
-                        passed_all = False
-                        # 如果检查点有自定义反馈，使用它，否则用默认的
-                        feedback = cp.feedback if hasattr(cp, 'feedback') and cp.feedback else detail
-                        results.append(f"检查点 {i + 1} 失败: {feedback}")
+            for i, cp in enumerate(checkpoints):
+                passed, detail = self._evaluate_checkpoint(page, cp)
+                if not passed:
+                    passed_all = False
+                    # 如果检查点有自定义反馈，使用它，否则用默认的
+                    feedback = cp.feedback if hasattr(cp, 'feedback') and cp.feedback else detail
+                    results.append(f"检查点 {i + 1} 失败: {feedback}")
 
         except Error as e:
             return {"passed": False, "message": "评测服务发生内部错误。", "details": [str(e)]}
         finally:
             # 确保资源被正确释放
-            if browser:
+            if page:
                 try:
-                    browser.close()
+                    page.close()
                 except Error:
-                    # 浏览器可能已经关闭，忽略错误
+                    # 页面可能已经关闭，忽略错误
                     pass
         
         message = "恭喜！所有测试点都通过了！" if passed_all else "很遗憾，部分测试点未通过。"
@@ -327,8 +351,12 @@ class SandboxService:
                 assertion_op = assertion.assertion_type
                 expected_value = assertion.value
                 
+                # 先检查元素是否存在，避免在元素缺失时等待5秒超时
+                if locator.count() == 0:
+                    return False, f"找不到匹配选择器 '{selector}' 的元素"
+                
                 try:
-                    actual_text = locator.text_content(timeout=5000)
+                    actual_text = locator.first.text_content(timeout=1000)
                     actual_text = actual_text.replace('\n', ' ').replace('\r', ' ').strip()
                 except Exception:
                     return False, f"找不到或无法获取选择器 '{selector}' 的文本内容"
@@ -442,7 +470,7 @@ class SandboxService:
                         return False, f"找不到匹配选择器 '{selector}' 的元素"
                     
                     try:
-                        actual_text = locator.text_content(timeout=5000)
+                        actual_text = locator.first.text_content(timeout=1000)
                     except Exception:
                         return False, f"无法获取选择器 '{selector}' 的文本内容"
                     

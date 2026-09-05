@@ -230,7 +230,12 @@ def translate(text: str) -> str:
                     system_prompt="Translate into English without adding other components, while keeping the emotions of the original text and the translation consistent.",
                     messages=messages
                 )
-                
+                # 检测翻译是否失败（模型不可用或接口异常时返回的是英文错误提示文本）
+                if not translated_message or not translated_message.strip():
+                    return text
+                if translated_message.startswith("I apologize") or "Error code" in translated_message or "has no provider supported" in translated_message:
+                    logger.warning(f"翻译服务异常，使用原文: {translated_message[:80]}")
+                    return text
                 
             except Exception as e:
                 logger.info(f"⚠️ 翻译失败: {e}")

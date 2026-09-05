@@ -26,6 +26,9 @@ class ChatModule {
     this.streamElement = null;
     // 添加缓冲区用于存储完整的AI消息
     this.aiMessageBuffer = null;
+    // 轮询回退相关
+    this._pollingTimer = null;
+    this._wsResultReceived = false;
     //websocket.userId = getParticipantId();
     //websocket.connect();
      // 订阅 WebSocket 消息
@@ -150,6 +153,32 @@ websocket.subscribe("stream_end", (msg) => {
       this.streamElement = null;
       // 清空缓冲区
       this.aiMessageBuffer = null;
+      // WebSocket 已返回结果，停止轮询回退
+      this._wsResultReceived = true;
+      this._stopPolling();
+    });
+//error - 处理WebSocket错误消息
+    websocket.subscribe("error", (msg) => {
+      console.error('[ChatModule] 收到错误消息:', msg);
+      let errorText = '抱歉，生成回复时出现错误';
+      try {
+        if (typeof msg === 'string') {
+          errorText = msg;
+        } else if (msg && typeof msg === 'object') {
+          errorText = msg.message || msg.error || msg.text || JSON.stringify(msg);
+        }
+      } catch (e) {
+        console.warn('[ChatModule] 解析错误消息失败', e, msg);
+      }
+      // 显示错误消息
+      this.addMessageToUI('ai', `⚠️ ${errorText}`, { persist: true });
+      this.setLoadingState(false);
+      if (this.inputElement) this.inputElement.value = '';
+      this.streamElement = null;
+      this.aiMessageBuffer = null;
+      // WebSocket 已返回错误，停止轮询回退
+      this._wsResultReceived = true;
+      this._stopPolling();
     });
     // websocket.subscribe("submission_progress", (msg) => {
     //   console.log("[ChatModule] 收到进度:", msg);
@@ -294,7 +323,12 @@ websocket.subscribe("stream_end", (msg) => {
       
       // 发送请求以触发后端处理，实际回复通过 WebSocket 返回
       // 等待请求返回（通常为确认/排队），错误时在 catch 中解锁按钮
-      await api_client.post('/chat/ai/chat2', requestBody);
+      const response = await api_client.post('/chat/ai/chat2', requestBody);
+      
+      // 启动轮询回退机制：如果 WebSocket 在超时时间内没有返回结果，则通过轮询获取结果
+      if (response && response.data && response.data.task_id) {
+        this._startPollingFallback(response.data.task_id, mode, contentId);
+      }
 
 
      
@@ -305,7 +339,117 @@ websocket.subscribe("stream_end", (msg) => {
       this.setLoadingState(false);
     }
   }
- 
+
+  /**
+   * 启动轮询回退机制
+   * 当 WebSocket 不可用时，通过轮询任务结果端点获取 AI 回复
+   * @param {string} taskId - Celery 任务ID
+   * @param {string} mode - 当前模式
+   * @param {string} contentId - 内容ID
+   */
+  _startPollingFallback(taskId, mode, contentId) {
+    this._wsResultReceived = false;
+    this._stopPolling();
+    
+    const pollInterval = 2000; // 每2秒轮询一次
+    const maxPollingTime = 60000; // 最长轮询60秒
+    const startTime = Date.now();
+    
+    const poll = async () => {
+      // 如果 WebSocket 已经返回结果，停止轮询
+      if (this._wsResultReceived) {
+        this._stopPolling();
+        return;
+      }
+      
+      // 超时检查
+      if (Date.now() - startTime > maxPollingTime) {
+        console.warn('[ChatModule] 轮询超时，未获取到结果');
+        this._stopPolling();
+        this.setLoadingState(false);
+        return;
+      }
+      
+      try {
+        const result = await api_client.get(`/chat/ai/chat2/result/${taskId}`);
+        if (result && result.data && result.data.ai_response) {
+          // 成功获取到结果
+          console.log('[ChatModule] 通过轮询获取到AI回复');
+          const responseText = result.data.ai_response;
+          
+          // 更新UI
+          if (this.streamElement) {
+            this.aiMessageBuffer = responseText;
+            this.streamElement._renderBuffer = responseText;
+            if (this.streamElement._flushFn) {
+              this.streamElement._flushFn();
+            }
+          } else {
+            this.addMessageToUI('ai', responseText, { mode, contentId, persist: true });
+          }
+          
+          // 保存到localStorage
+          try {
+            const participantId = getParticipantId();
+            if (participantId) {
+              chatStorage.append(participantId, {
+                role: 'assistant',
+                content: responseText,
+                mode: mode,
+                contentId: contentId,
+                ts: Date.now(),
+              });
+            }
+          } catch (e) {
+            console.warn('[ChatModule] 持久化AI消息失败:', e);
+          }
+          
+          this.setLoadingState(false);
+          if (this.inputElement) this.inputElement.value = '';
+          this.streamElement = null;
+          this.aiMessageBuffer = null;
+          this._wsResultReceived = true;
+          this._stopPolling();
+          return;
+        }
+      } catch (error) {
+        // 202 表示任务还在处理中，继续轮询
+        if (error.status === 202) {
+          // 正常，继续等待
+        } else {
+          console.error('[ChatModule] 轮询结果出错:', error);
+          // 5xx 错误可能是任务失败了
+          if (error.status && error.status >= 500) {
+            this.addMessageToUI('ai', `⚠️ 抱歉，生成回复时出现错误：${error.message || '未知错误'}`, { persist: true });
+            this.setLoadingState(false);
+            if (this.inputElement) this.inputElement.value = '';
+            this.streamElement = null;
+            this.aiMessageBuffer = null;
+            this._wsResultReceived = true;
+            this._stopPolling();
+            return;
+          }
+        }
+      }
+      
+      // 继续下一次轮询
+      this._pollingTimer = setTimeout(poll, pollInterval);
+    };
+    
+    // 延迟启动轮询（给 WebSocket 一些时间先尝试）
+    this._pollingTimer = setTimeout(poll, 5000);
+  }
+
+  /**
+   * 停止轮询
+   */
+  _stopPolling() {
+    if (this._pollingTimer) {
+      clearTimeout(this._pollingTimer);
+      this._pollingTimer = null;
+    }
+  }
+
      appendMessageContent(messageContentElement, content) {
     // 检查元素是否存在
     if (!messageContentElement) return;

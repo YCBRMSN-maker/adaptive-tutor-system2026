@@ -251,7 +251,26 @@ async function fetchTopicContent(topicId) {
     console.log('[MainApp] 学习内容API请求地址:', apiUrl);
 
     const response = await fetch(apiUrl);
-    const data = await response.json();
+    if (!response.ok) {
+        // 尝试读取纯文本错误信息
+        const text = await response.text().catch(() => '');
+        let message = `学习内容请求失败 (${response.status})`;
+        if (text) {
+            try {
+                const errData = JSON.parse(text);
+                message = errData.detail || errData.message || message;
+            } catch (e) {
+                message = text.length > 200 ? text.substring(0, 200) + '...' : text;
+            }
+        }
+        throw new Error(message);
+    }
+    let data;
+    try {
+        data = await response.json();
+    } catch (e) {
+        throw new Error(`学习内容响应解析失败: ${e.message}`);
+    }
 
     if (data.code !== 200 || !data.data) {
         throw new Error('学习内容API返回数据格式错误');
@@ -1664,6 +1683,11 @@ function extendChatModuleForElementContext() {
         // 添加用户消息到UI
         this.addMessageToUI('user', message);
 
+        // 创建AI占位元素
+        const aiEl = this.addMessageToUI('ai', "");
+        this.streamElement = aiEl;
+        this.aiMessageBuffer = "";
+
         // 设置加载状态
         this.setLoadingState(true);
 
@@ -1706,14 +1730,12 @@ function extendChatModuleForElementContext() {
             }
 
             // 使用封装的 apiClient 发送请求
-            const data = await window.apiClient.post('/chat/ai/chat2', requestBody);
+            const response = await window.apiClient.post('/chat/ai/chat2', requestBody);
 
-            // if (data.code === 200 && data.data && typeof data.data.ai_response === 'string') {
-            //     // 添加AI回复到UI
-            //     this.addMessageToUI('ai', data.data.ai_response);
-            // } else {
-            //     throw new Error(data.message || 'AI回复内容为空或格式不正确');
-            // }
+            // 启动轮询回退机制
+            if (response && response.data && response.data.task_id) {
+                this._startPollingFallback(response.data.task_id, mode, contentId);
+            }
         } catch (error) {
             console.error('[ChatModule] 发送消息时出错:', error);
             this.addMessageToUI('ai', `抱歉，我无法回答你的问题。错误信息: ${error.message}`);

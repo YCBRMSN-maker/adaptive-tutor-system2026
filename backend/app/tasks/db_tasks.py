@@ -60,7 +60,11 @@ def save_progress_task(progress_data: dict):
             logger.warning(f"[save_progress_task] 补录 participants 失败（忽略继续）: {e}")
         result = crud_progress.create(db=db, obj_in=progress_in)
         logger.info(f"[save_progress_task] 进度记录保存成功: {result}")
-        return result
+        # 返回可序列化的dict，避免ORM对象无法被Celery结果后端序列化
+        try:
+            return {"id": result.id, "participant_id": result.participant_id, "topic_id": result.topic_id}
+        except Exception:
+            return {"participant_id": progress_in.participant_id, "topic_id": progress_in.topic_id}
     except Exception as e:
         logger.error(f"[save_progress_task] 保存进度记录时出错: {str(e)}")
         logger.error(f"[save_progress_task] 错误类型: {type(e)}")

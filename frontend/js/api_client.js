@@ -6,7 +6,73 @@ import {AppConfig} from './modules/config.js';
 export function buildWebSocketUrl(id='') {
     return `${buildBackendUrl('/ws/user/')}${id}`;
 }
-// --- 新增：不带 participant_id 的通用请求方法 ---
+
+/**
+ * 统一处理响应：先检查状态码，再解析 JSON
+ * 如果响应不是 JSON 格式，会提取纯文本错误信息
+ */
+async function _handleResponse(response) {
+    if (!response.ok) {
+        // 尝试解析 JSON 错误响应
+        let errorData = null;
+        let errorText = '';
+        try {
+            const text = await response.text();
+            errorText = text;
+            try {
+                errorData = JSON.parse(text);
+            } catch (e) {
+                // 不是 JSON，保留纯文本
+                errorData = null;
+            }
+        } catch (e) {
+            errorText = `HTTP ${response.status} ${response.statusText}`;
+        }
+
+        // 构造有意义的错误消息
+        let message = `请求失败 (${response.status})`;
+        if (errorData) {
+            if (errorData.detail) {
+                if (typeof errorData.detail === 'string') {
+                    message = errorData.detail;
+                } else if (Array.isArray(errorData.detail)) {
+                    // Pydantic 验证错误格式
+                    const errors = errorData.detail.map(e => `${e.loc.join('.')}: ${e.msg}`).join('; ');
+                    message = `参数验证错误: ${errors}`;
+                } else {
+                    message = JSON.stringify(errorData.detail);
+                }
+            } else if (errorData.message) {
+                message = errorData.message;
+            } else {
+                message = JSON.stringify(errorData);
+            }
+        } else if (errorText) {
+            // 纯文本错误，截断显示
+            message = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+        }
+
+        const error = new Error(message);
+        error.status = response.status;
+        error.data = errorData;
+        error.text = errorText;
+        throw error;
+    }
+
+    // 正常响应，解析 JSON
+    try {
+        return await response.json();
+    } catch (e) {
+        // 如果 JSON 解析失败，尝试获取纯文本
+        const text = await response.text().catch(() => '');
+        const error = new Error(`响应解析失败: ${e.message}`);
+        error.status = response.status;
+        error.text = text;
+        throw error;
+    }
+}
+
+// --- 不带 participant_id 的通用请求方法 ---
 async function _requestWithoutAuth(endpoint, options = {}) {
     const defaultOptions = {
         headers: { 'Content-Type': 'application/json' },
@@ -15,7 +81,7 @@ async function _requestWithoutAuth(endpoint, options = {}) {
     
     const url = buildBackendUrl(endpoint);
     const response = await fetch(url, defaultOptions);
-    return response.json();
+    return _handleResponse(response);
 }
 
 async function getWithoutAuth(endpoint, params = {}) {
@@ -49,7 +115,7 @@ async function post(endpoint, body) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(fullBody),
   });
-  return response.json();
+  return _handleResponse(response);
 }
 
 // ... 实现 get, put, delete 等方法
@@ -71,7 +137,7 @@ async function get(endpoint, params = {}) {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
   });
-  return response.json();
+  return _handleResponse(response);
 }
 
 // 挂载到window对象上，以便全局访问

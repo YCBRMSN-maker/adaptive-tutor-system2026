@@ -7,6 +7,7 @@ from app.schemas.behavior import BehaviorEvent
 from datetime import datetime, timedelta, UTC, timezone
 import json
 import os
+import re
 import numpy as np
 
 # 导入BKT模型
@@ -221,13 +222,110 @@ class StudentProfile:
         return profile
 
 
+class _RedisJsonCompat:
+    """RedisJSON 兼容层：当 Redis 未安装 RedisJSON 模块时，自动回退为普通字符串 JSON 存取"""
+
+    def __init__(self, client):
+        self._client = client
+        self._use_json = True
+        try:
+            client.execute_command('JSON.GET', '_probe_')
+        except redis.ResponseError as e:
+            if 'unknown command' in str(e).lower():
+                self._use_json = False
+        except Exception:
+            self._use_json = False
+
+    def get(self, key, path=None):
+        if self._use_json:
+            try:
+                return self._client.json().get(key, path)
+            except Exception:
+                pass
+        data = self._load(key)
+        if data is None:
+            return None
+        parts = self._parse_path(path)
+        cur = data
+        try:
+            for p in parts:
+                if not isinstance(cur, dict):
+                    return None
+                cur = cur.get(p)
+                if cur is None:
+                    break
+        except (KeyError, TypeError):
+            return None
+        return cur
+
+    def set(self, key, path, value):
+        if self._use_json:
+            try:
+                return self._client.json().set(key, path, value)
+            except Exception:
+                pass
+        data = self._load(key)
+        if not isinstance(data, dict):
+            data = {}
+        parts = self._parse_path(path)
+        if not parts:
+            if isinstance(value, dict):
+                data = value
+            else:
+                data = {'value': value}
+        else:
+            cur = data
+            for p in parts[:-1]:
+                if not isinstance(cur.get(p), dict):
+                    cur[p] = {}
+                cur = cur[p]
+            cur[parts[-1]] = value
+        raw = json.dumps(data, ensure_ascii=False, default=str)
+        return bool(self._client.set(key, raw))
+
+    def _load(self, key):
+        raw = self._client.get(key)
+        if raw is None:
+            return None
+        try:
+            return json.loads(raw)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _parse_path(path):
+        if not path or path in ('.', '$'):
+            return []
+        parts = []
+        for m in re.finditer(r'\.([A-Za-z_][A-Za-z0-9_]*)|\["([^"]+)"\]', path or ''):
+            if m.group(1):
+                parts.append(m.group(1))
+            elif m.group(2):
+                parts.append(m.group(2))
+        return parts
+
+
+class _RedisJsonCompatClient:
+    """redis 客户端代理：.json() 返回兼容对象，其余属性/方法透传原始客户端"""
+
+    def __init__(self, client):
+        self._client = client
+        self._json = _RedisJsonCompat(client)
+
+    def json(self):
+        return self._json
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
+
 class UserStateService:
     # 快照创建间隔（示例：每1次事件或每1分钟）
     SNAPSHOT_EVENT_INTERVAL = 1
     SNAPSHOT_TIME_INTERVAL = timedelta(minutes=1)
     
     def __init__(self, redis_client: redis.Redis):
-        self.redis_client = redis_client
+        self.redis_client = _RedisJsonCompatClient(redis_client)
     
     def handle_event(self, event: BehaviorEvent, db: Session, background_tasks=None):
         """处理事件，并可能创建快照"""
