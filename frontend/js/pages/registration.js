@@ -4,18 +4,41 @@ import { AppConfig, initializeConfig } from '../modules/config.js';
 import { setupHeaderTitle, navigateTo } from '../modules/navigation.js';
 import websocket from '../modules/websocket_client.js';
 import apiClient from '../api_client.js';
+import { requireLogin, getCurrentUser } from '../modules/auth.js';
+import { getSelectedCourse, requireSelectedCourse } from '../modules/courses.js';
 // 页面加载时先检查是否已有会话
 // checkAndRedirect(); // 暂时注释掉，避免在注册页面直接跳转
 
+// 页面守卫：未登录先去登录页，未选择课程先去课程选择页
+const loginReady = requireLogin();
+const courseReady = loginReady ? requireSelectedCourse() : false;
+
 document.addEventListener('DOMContentLoaded', async () => {
+    if (!loginReady || !courseReady) return;
+
     // 初始化配置
     await initializeConfig();
     // 设置标题点击跳转到首页（刷新）
-    setupHeaderTitle('/index.html');
+    setupHeaderTitle('/pages/index.html');
 
     const startButton = document.getElementById('start-button');
     const nicknameInput = document.getElementById('nickname-input');
     const themeSelector = document.getElementById('theme-selector');
+    const selectedCourse = getSelectedCourse();
+
+    // 回显当前课程，并提供切换课程入口
+    const courseContext = document.getElementById('course-context');
+    const courseContextName = document.getElementById('course-context-name');
+    if (selectedCourse && courseContext && courseContextName) {
+        courseContextName.textContent = selectedCourse.name;
+        courseContext.hidden = false;
+    }
+
+    // 昵称默认使用登录时的昵称，用户仍可修改
+    const currentUser = getCurrentUser();
+    if (currentUser && nicknameInput && !nicknameInput.value) {
+        nicknameInput.value = currentUser.nickname;
+    }
 
     // 重置按钮状态（处理页面后退的情况）
     if (startButton) {
@@ -65,7 +88,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const result = await apiClient.postWithoutAuth('/session/initiate', {
                     participant_id: participantId,
                     nickname: nickname,
-                    theme: theme
+                    theme: theme,
+                    // 课程作为学习大方向一并上报，后端当前会话接口会忽略未知字段
+                    course: selectedCourse ? selectedCourse.id : null,
+                    course_name: selectedCourse ? selectedCourse.name : null
                 });
 
                 if (result.code === 200 || result.code === 201) {
@@ -150,6 +176,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // 监听页面显示事件（包括从缓存恢复）
 window.addEventListener('pageshow', (event) => {
+    // bfcache 恢复时重新校验登录与选课状态，避免退出登录后退绕过守卫
+    if (event.persisted) {
+        if (!requireLogin()) return;
+        if (!requireSelectedCourse()) return;
+    }
+
     const startButton = document.getElementById('start-button');
     if (startButton) {
         // 重置按钮状态

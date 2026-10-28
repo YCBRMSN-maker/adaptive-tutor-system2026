@@ -19,7 +19,11 @@ export function getParticipantId() {
 }
 
 export function clearParticipantId() {
-  localStorage.removeItem(PARTICIPANT_ID_KEY);
+  try {
+    localStorage.removeItem(PARTICIPANT_ID_KEY);
+  } catch (e) {
+    console.warn('[session] 清理参与者 ID 失败:', e);
+  }
 }
 
 // 在页面加载时检查，如果已有会话，可以直接跳转，避免重复注册

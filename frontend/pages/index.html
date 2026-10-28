@@ -37,6 +37,12 @@
             <!-- 欢迎区域 -->
             <div class="welcome-section">
               <iconify-icon icon="mdi:robot" width="64" height="64" class="welcome-icon"></iconify-icon>
+              <!-- 当前课程（由课程选择页写入，registration.js 回显） -->
+              <div id="course-context" class="course-context" hidden>
+                <iconify-icon icon="mdi:book-open-page-variant" width="18" height="18"></iconify-icon>
+                <span>当前课程：<strong id="course-context-name"></strong></span>
+                <a class="course-context-change" href="../pages/course_selection.html">切换课程</a>
+              </div>
               <h2>和AI一起学HTML</h2>
               <p>选择你喜欢的主题，让sync-PBL带你亲手打造第一个网站 ✨</p>
             </div>

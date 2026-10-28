@@ -116,8 +116,8 @@ export function goBack() {
     else if (window.history.length > 1) {
         window.history.back();
     } else {
-        // 如果没有历史记录，跳转到首页
-        window.location.href = '/index.html';
+        // 如果没有历史记录，跳转到课程生成页
+        window.location.href = '/pages/index.html';
     }
 }
 
