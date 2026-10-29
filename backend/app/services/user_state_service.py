@@ -239,7 +239,14 @@ class _RedisJsonCompat:
     def get(self, key, path=None):
         if self._use_json:
             try:
+                # RedisJSON 的 JSON.GET 不接受显式 None 作为 path，
+                # 无 path 时必须省略参数，否则会报 "Path '$.None' does not exist"，
+                # 进而在回退到字符串读取时触发 WRONGTYPE。
+                if path is None:
+                    return self._client.json().get(key)
                 return self._client.json().get(key, path)
+            except redis.ResponseError:
+                pass
             except Exception:
                 pass
         data = self._load(key)
@@ -261,7 +268,11 @@ class _RedisJsonCompat:
     def set(self, key, path, value):
         if self._use_json:
             try:
-                return self._client.json().set(key, path, value)
+                # RedisJSON 2.x 的根路径为 '$'，'.' / 空路径统一归一化
+                json_path = '$' if path in (None, '', '.') else path
+                return self._client.json().set(key, json_path, value)
+            except redis.ResponseError:
+                pass
             except Exception:
                 pass
         data = self._load(key)
@@ -284,7 +295,11 @@ class _RedisJsonCompat:
         return bool(self._client.set(key, raw))
 
     def _load(self, key):
-        raw = self._client.get(key)
+        try:
+            raw = self._client.get(key)
+        except redis.ResponseError:
+            # key 为 RedisJSON 类型时不能用 GET 读取，交由 JSON.GET 处理
+            return None
         if raw is None:
             return None
         try:
