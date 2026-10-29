@@ -13,7 +13,6 @@
  * - TODO中表示需要我们根据实际项目调整或确认的点（Monaco 编辑器实例的暴露方式等）
  */
 
-import debounce from 'https://cdn.jsdelivr.net/npm/lodash-es@4.17.21/debounce.js';
 import { getParticipantId } from './session.js';
 class BehaviorTracker {
   constructor() {

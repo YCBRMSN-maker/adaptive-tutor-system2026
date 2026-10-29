@@ -1,7 +1,7 @@
 // 导入模块
 import { getParticipantId } from '../modules/session.js';
 import { buildBackendUrl } from '../modules/config.js';
-import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
+import { marked } from '../vendor/marked.esm.js';
 import { setupHeaderTitle, setupBackButton, getUrlParam, debugUrlParams, getReturnUrl, navigateTo } from '../modules/navigation.js';
 import { decryptWithTimestamp } from '../modules/encryption.js';
 import tracker from '../modules/behavior_tracker.js';

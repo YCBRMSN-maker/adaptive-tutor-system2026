@@ -9,7 +9,7 @@
  */
 
 import { getParticipantId } from './session.js';
-import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
+import { marked } from '../vendor/marked.esm.js';
 import websocket from './websocket_client.js';
 import api_client from '../api_client.js'
 import chatStorage from './chat_storage.js';

@@ -8,11 +8,11 @@
     <link rel="stylesheet" href="../css/styles.css">
     <!-- Iconify图标库 -->
     <script src="../js/modules/iconify-icon.min.js"></script>
-    <!-- Monaco Editor CSS -->
+    <!-- Monaco Editor CSS（本地化托管，禁止外网 CDN） -->
     <link rel="stylesheet" data-name="vs/editor/editor.main"
-        href="https://cdn.jsdelivr.net/npm/monaco-editor@0.33.0/min/vs/editor/editor.main.css">
+        href="/js/vendor/monaco/vs/editor/editor.main.css">
     <!-- 代码高亮 CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/github.min.css">
+    <link rel="stylesheet" href="/css/vendor/github.min.css">
 </head>
 
 <body class="test-page">
@@ -192,11 +192,11 @@
     </div>
     <!-- API客户端 -->
     <script type="module" src="../js/api_client.js"></script>
-    <!-- Monaco Editor JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.33.0/min/vs/loader.js"></script>
+    <!-- Monaco Editor JavaScript（本地化托管，禁止外网 CDN） -->
+    <script src="/js/vendor/monaco/vs/loader.js"></script>
     <script>
-        // 配置Monaco Editor加载器路径
-        require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.33.0/min/vs' } });
+        // 配置Monaco Editor加载器路径（本地 vendor 目录）
+        require.config({ paths: { 'vs': '/js/vendor/monaco/vs' } });
     </script>
     <!-- 编辑器主文件 -->
     <script type="module" src="../js/modules/editor.js"></script>
