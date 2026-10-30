@@ -102,8 +102,8 @@ async function postWithoutAuth(endpoint, body) {
 async function post(endpoint, body) {
   const participantId = getParticipantId();
   if (!participantId) {
-        // 如果没有ID，说明会话已丢失，应强制返回注册页
-        window.location.href = '/pages/index.html';
+        // 如果没有ID，说明会话已丢失，应强制返回登录页
+        window.location.href = '/pages/login.html';
         throw new Error("Session not found. Redirecting to login.");
   }
 
@@ -122,8 +122,8 @@ async function post(endpoint, body) {
 async function get(endpoint, params = {}) {
   const participantId = getParticipantId();
   if (!participantId) {
-        // 如果没有ID，说明会话已丢失，应强制返回注册页
-        window.location.href = '/pages/index.html';
+        // 如果没有ID，说明会话已丢失，应强制返回登录页
+        window.location.href = '/pages/login.html';
         throw new Error("Session not found. Redirecting to login.");
   }
   

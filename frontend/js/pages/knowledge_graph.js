@@ -5,6 +5,10 @@ import { GraphRenderer } from '../modules/graph_renderer.js';
 import { buildBackendUrl } from '../modules/config.js';  // 新增导入
 import { setupHeaderTitle, trackReferrer, setupBackButton, navigateTo } from '../modules/navigation.js';
 import tracker from '../modules/behavior_tracker.js';
+import { requireSessionAndCourse } from '../modules/pageGuard.js';
+
+// 访问守卫：未登录或未选择课程时跳转到登录页 / 课程选择页
+const guardPassed = requireSessionAndCourse();
 
 tracker.init({
   user_idle: false,
@@ -14,6 +18,8 @@ tracker.init({
 
 // 初始化应用
 document.addEventListener('DOMContentLoaded', async () => {
+  if (!guardPassed) return;
+
   trackReferrer();
   // 设置标题点击跳转到首页
   setupHeaderTitle('/pages/knowledge_graph.html');

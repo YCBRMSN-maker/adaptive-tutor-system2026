@@ -28,8 +28,8 @@ const MIME = {
 };
 
 function serveStatic(req, res, pathname) {
-  // Default entry point
-  if (pathname === "/" || pathname === "") pathname = "/pages/index.html";
+  // Default entry point: 登录页（登录后进入课程选择页）
+  if (pathname === "/" || pathname === "") pathname = "/pages/login.html";
 
   // Prevent path traversal — normalize to forward slashes for consistent comparison
   const safePath = path.normalize(pathname).replace(/^(\.\.[/\\])+/, "");

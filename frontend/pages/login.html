@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sync-PBL学习平台 - 登录</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <!-- Iconify图标库 -->
+  <script src="../js/modules/iconify-icon.min.js"></script>
+</head>
+
+<body>
+  <div class="main-container">
+    <!-- 顶部标题栏 -->
+    <header class="top-header">
+      <h1 class="header-title" id="headerTitle">sync-PBL学习平台</h1>
+      <!-- 中英文切换按钮 -->
+      <button id="language-toggle" class="back-button"
+        style="position: absolute; right: 20px; display: flex; align-items: center; gap: var(--spacing-xs); padding: var(--spacing-sm) var(--spacing-md); background-color: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: var(--border-radius-md); color: white; cursor: pointer; transition: all 0.2s ease; font-size: var(--font-size-sm); font-weight: 500;">
+        <iconify-icon icon="mdi:translate" width="20" height="20"></iconify-icon>
+        EN
+      </button>
+    </header>
+
+    <!-- 内容区域 -->
+    <div class="content-container page-fill">
+      <div class="index-container panel">
+        <div class="panel-header">
+          <iconify-icon icon="mdi:sparkles" width="24" height="24"></iconify-icon>
+          <h2>欢迎使用sync-PBL学习平台</h2>
+        </div>
+
+        <!-- 登录入口 -->
+        <div class="entry-container auth-entry-container">
+          <div class="entry-content auth-content">
+            <!-- 欢迎区域 -->
+            <div class="welcome-section auth-welcome">
+              <iconify-icon icon="mdi:account-lock" width="64" height="64" class="welcome-icon"></iconify-icon>
+              <h2>登录以开始学习</h2>
+              <p>登录后先选择学习课程，AI 再为你生成专属的学习方案。</p>
+            </div>
+
+            <!-- 登录表单 -->
+            <div class="form-section auth-form-section">
+              <form id="login-form" class="auth-form" novalidate>
+                <div class="auth-field">
+                  <label class="auth-label" for="login-nickname">昵称</label>
+                  <div class="input-group auth-input-group">
+                    <iconify-icon icon="mdi:account" width="20" height="20"></iconify-icon>
+                    <input type="text" id="login-nickname" class="auth-input" name="nickname" placeholder="请输入你的昵称"
+                      maxlength="20" autocomplete="username" aria-describedby="login-error" />
+                  </div>
+                </div>
+
+                <div class="auth-field">
+                  <label class="auth-label" for="login-password">密码</label>
+                  <div class="input-group auth-input-group">
+                    <iconify-icon icon="mdi:lock" width="20" height="20"></iconify-icon>
+                    <input type="password" id="login-password" class="auth-input auth-input-with-action"
+                      name="password" placeholder="请输入密码（至少 6 位）" maxlength="32"
+                      autocomplete="current-password" aria-describedby="login-error" />
+                    <button type="button" id="password-toggle" class="password-toggle" aria-label="显示密码"
+                      aria-pressed="false" title="显示密码">
+                      <iconify-icon icon="mdi:eye" width="20" height="20"></iconify-icon>
+                    </button>
+                  </div>
+                </div>
+
+                <p id="login-error" class="auth-error" role="alert" hidden></p>
+
+                <button type="submit" id="login-button" class="start-button auth-submit" disabled>
+                  <iconify-icon icon="mdi:login" width="20" height="20"></iconify-icon>
+                  登录
+                </button>
+              </form>
+
+              <p class="auth-hint">
+                演示账号：首次使用任意昵称（至少 2 位）与密码（至少 6 位）即可登录，账号信息仅保存在当前浏览器中；忘记密码时可清除本站浏览器数据后重新登录。
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 引入登录页面逻辑 -->
+  <script type="module" src="../js/pages/loginPage.js"></script>
+</body>
+
+</html>

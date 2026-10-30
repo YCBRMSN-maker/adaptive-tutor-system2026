@@ -1,13 +1,14 @@
 // 导入模块
 import { getParticipantId } from '../modules/session.js';
 import { buildBackendUrl } from '../modules/config.js';
-import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
+import { marked } from '../vendor/marked.esm.js';
 import { setupHeaderTitle, setupBackButton, getUrlParam, debugUrlParams, getReturnUrl, navigateTo } from '../modules/navigation.js';
 import { decryptWithTimestamp } from '../modules/encryption.js';
 import tracker from '../modules/behavior_tracker.js';
 import chatModule from '../modules/chat.js';
 import websocket from '../modules/websocket_client.js';
 import { showSectionFeedback } from '../modules/section_feedback.js';
+import { requireSessionAndCourse } from '../modules/pageGuard.js';
 
 // 用于存储WebSocket订阅回调的引用，避免重复订阅
 let submissionCallbackRef = null;
@@ -960,6 +961,9 @@ ${(testResult.details || []).join('\n') || '无详细信息'}
 
 // 主程序入口
 document.addEventListener('DOMContentLoaded', function () {
+    // 访问守卫：未登录或未选择课程时不进入测试页
+    if (!requireSessionAndCourse()) return;
+
     // 设置标题和返回按钮
     setupHeaderTitle('/pages/knowledge_graph.html');
     // 设置返回按钮

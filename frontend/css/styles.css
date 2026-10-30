@@ -3577,3 +3577,460 @@
             width: 100%;
         }
     }
+
+    /* ============================================================
+       登录页与课程选择页（feature/language-selection-page 新增）
+       ============================================================ */
+
+    /* ---------- 登录页 ---------- */
+    .content-container.page-fill {
+        height: calc(100vh - var(--header-height));
+    }
+
+    .auth-entry-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        align-items: flex-start;
+        justify-content: center;
+        padding: var(--spacing-xl) var(--spacing-2xl);
+        overflow-y: auto;
+    }
+
+    .auth-content {
+        max-width: 480px;
+        margin: 0 auto;
+    }
+
+    .auth-welcome {
+        margin-bottom: var(--spacing-xl);
+    }
+
+    .auth-welcome .welcome-icon {
+        margin-bottom: var(--spacing-md);
+    }
+
+    .auth-welcome h2 {
+        font-size: var(--font-size-2xl);
+    }
+
+    .auth-form-section {
+        padding: var(--spacing-xl);
+        text-align: left;
+    }
+
+    .auth-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-lg);
+    }
+
+    .auth-field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .auth-label {
+        font-size: var(--font-size-sm);
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .auth-input-group {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .auth-input-group>iconify-icon {
+        position: absolute;
+        left: var(--spacing-md);
+        color: var(--text-light);
+        pointer-events: none;
+        z-index: 2;
+    }
+
+    .auth-input {
+        width: 100%;
+        padding: var(--spacing-md) var(--spacing-md) var(--spacing-md) var(--spacing-2xl);
+        font-family: inherit;
+        font-size: var(--font-size-base);
+        color: var(--text-color);
+        background: var(--card-bg);
+        border: 2px solid var(--border-color);
+        border-radius: var(--border-radius-lg);
+        box-sizing: border-box;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .auth-input-with-action {
+        padding-right: calc(var(--spacing-2xl) + var(--spacing-md));
+    }
+
+    .auth-input::placeholder {
+        color: var(--text-light);
+    }
+
+    .auth-input:hover {
+        border-color: var(--secondary-color);
+    }
+
+    .auth-input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    .auth-input[aria-invalid="true"] {
+        border-color: var(--error-color);
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+
+    .password-toggle {
+        position: absolute;
+        right: var(--spacing-sm);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        color: var(--text-light);
+        background: transparent;
+        border: none;
+        border-radius: var(--border-radius-md);
+        cursor: pointer;
+        transition: color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .password-toggle:hover {
+        color: var(--primary-color);
+        background: #eef2ff;
+    }
+
+    .password-toggle:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 1px;
+    }
+
+    .auth-error {
+        margin: 0;
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: var(--font-size-sm);
+        line-height: 1.5;
+        color: #b91c1c;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: var(--border-radius-md);
+        text-align: left;
+    }
+
+    .auth-error[hidden] {
+        display: none;
+    }
+
+    .auth-submit {
+        margin-top: var(--spacing-xs);
+    }
+
+    .auth-hint {
+        margin: var(--spacing-lg) 0 0;
+        font-size: var(--font-size-xs);
+        line-height: 1.6;
+        color: var(--text-light);
+        text-align: left;
+    }
+
+    /* ---------- 课程选择页 ---------- */
+    .header-actions {
+        position: absolute;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .user-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        max-width: 180px;
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: var(--font-size-sm);
+        font-weight: 500;
+        color: white;
+        background-color: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: var(--border-radius-md);
+    }
+
+    .user-chip span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .logout-button {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-family: inherit;
+        font-size: var(--font-size-sm);
+        font-weight: 500;
+        color: white;
+        background-color: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: var(--border-radius-md);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .logout-button:hover {
+        background-color: rgba(255, 255, 255, 0.28);
+        transform: translateY(-1px);
+    }
+
+    .course-selection-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        align-items: flex-start;
+        justify-content: center;
+        padding: var(--spacing-lg) var(--spacing-2xl) var(--spacing-xl);
+        overflow-y: auto;
+    }
+
+    .course-selection-content {
+        width: 100%;
+        max-width: 960px;
+        margin: 0 auto;
+        text-align: center;
+    }
+
+    .course-selection-content .welcome-section {
+        margin-bottom: var(--spacing-xl);
+    }
+
+    .course-selection-content .welcome-section .welcome-icon {
+        margin-bottom: var(--spacing-md);
+    }
+
+    .course-selection-content .welcome-section p {
+        max-width: 620px;
+    }
+
+    .course-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--spacing-lg);
+        margin-bottom: var(--spacing-xl);
+        text-align: left;
+    }
+
+    .course-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+        width: 100%;
+        padding: var(--spacing-lg);
+        font-family: inherit;
+        color: var(--text-color);
+        text-align: left;
+        background: var(--card-bg);
+        border: 2px solid var(--border-color);
+        border-radius: var(--border-radius-xl);
+        box-shadow: var(--shadow-light);
+        cursor: pointer;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .course-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--secondary-color);
+        box-shadow: var(--card-shadow);
+    }
+
+    .course-card:focus-visible {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    }
+
+    .course-card.is-selected {
+        border-color: var(--primary-color);
+        background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 70%);
+        box-shadow: 0 8px 20px -6px rgba(79, 70, 229, 0.35);
+    }
+
+    .course-card-check {
+        position: absolute;
+        top: var(--spacing-md);
+        right: var(--spacing-md);
+        display: inline-flex;
+        color: var(--primary-color);
+        opacity: 0;
+        transform: scale(0.8);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .course-card.is-selected .course-card-check {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    .course-card-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 64px;
+        height: 64px;
+        margin-bottom: var(--spacing-sm);
+        color: var(--course-accent, var(--primary-color));
+        background: #f1f5f9;
+        border-radius: var(--border-radius-lg);
+    }
+
+    .course-card.is-selected .course-card-icon {
+        background: #eef2ff;
+    }
+
+    .course-card-title {
+        font-size: var(--font-size-xl);
+        font-weight: 700;
+        letter-spacing: -0.01em;
+    }
+
+    .course-card-desc {
+        font-size: var(--font-size-sm);
+        line-height: 1.6;
+        color: var(--text-light);
+    }
+
+    .course-card-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--spacing-xs);
+        margin-top: auto;
+        padding-top: var(--spacing-sm);
+    }
+
+    .course-tag {
+        padding: 2px var(--spacing-sm);
+        font-size: var(--font-size-xs);
+        color: #4338ca;
+        background: #eef2ff;
+        border-radius: 999px;
+    }
+
+    .course-selection-footer {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--spacing-sm);
+        width: 100%;
+        max-width: 420px;
+        margin: 0 auto;
+    }
+
+    .course-selection-tip {
+        margin: 0;
+        font-size: var(--font-size-sm);
+        color: var(--text-light);
+    }
+
+    .course-confirm-button {
+        width: 100%;
+    }
+
+    /* ---------- 课程生成页的当前课程提示 ---------- */
+    .course-context {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        margin-bottom: var(--spacing-md);
+        padding: var(--spacing-xs) var(--spacing-md);
+        font-size: var(--font-size-sm);
+        color: #4338ca;
+        background: #eef2ff;
+        border: 1px solid #ddd6fe;
+        border-radius: 999px;
+    }
+
+    .course-context[hidden] {
+        display: none;
+    }
+
+    .course-context strong {
+        font-weight: 600;
+    }
+
+    .course-context-change {
+        padding-left: var(--spacing-sm);
+        color: var(--primary-color);
+        text-decoration: none;
+        border-left: 1px solid #ddd6fe;
+    }
+
+    .course-context-change:hover {
+        text-decoration: underline;
+    }
+
+    /* ---------- 登录页 / 课程选择页响应式 ---------- */
+    @media (max-width: 900px) {
+        .course-grid {
+            grid-template-columns: 1fr;
+            max-width: 460px;
+            margin-right: auto;
+            margin-left: auto;
+        }
+    }
+
+    @media (max-width: 600px) {
+        .auth-entry-container {
+            padding: var(--spacing-md);
+        }
+
+        .auth-form-section {
+            padding: var(--spacing-lg);
+        }
+
+        .course-selection-container {
+            padding: var(--spacing-md);
+        }
+
+        .top-header.page-header {
+            padding: 0 12px;
+        }
+
+        .top-header.page-header .header-title {
+            max-width: 42%;
+            overflow: hidden;
+            font-size: var(--font-size-base);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .header-actions {
+            right: 8px;
+            gap: var(--spacing-xs);
+        }
+
+        .header-actions #language-toggle {
+            padding: 6px 8px;
+        }
+
+        .user-chip {
+            max-width: 84px;
+            padding: 6px 10px;
+        }
+
+        .logout-button {
+            padding: 6px 10px;
+        }
+
+        .logout-button span {
+            display: none;
+        }
+    }

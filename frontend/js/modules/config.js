@@ -15,7 +15,8 @@ export async function initializeConfig() {
   try {
     // We construct the URL manually here for the initial config fetch
     // 在所有环境中都使用相对路径，通过Nginx代理
-    const configUrl = '/api/v1/config';
+    // 后端路由为 /api/v1/config/（带尾斜杠），带上尾斜杠可避免 307 重定向
+    const configUrl = '/api/v1/config/';
       
     const response = await fetch(configUrl, { credentials: 'same-origin' });
     if (!response.ok) {

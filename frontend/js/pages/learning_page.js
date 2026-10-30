@@ -9,6 +9,7 @@ import { setupHeaderTitle, setupBackButton, getUrlParam, trackReferrer, navigate
 import { GraphState } from '../modules/graph_data.js';
 import { GraphRenderer } from '../modules/graph_renderer.js';
 import { getParticipantId } from '../modules/session.js';
+import { requireSessionAndCourse } from '../modules/pageGuard.js';
 
 // 导入功能模块
 import {
@@ -113,14 +114,12 @@ const AppDataStore = {
 // iframe加载状态管理
 let iframeLoadProcessed = false;
 
-// 为行为追踪器设置participant_id（如果不存在则使用默认值）
-if (!window.participantId) {
-    window.participantId = 'user123'; // 默认实验编号，实际应用中应该从session获取
-}
+// 访问守卫：未登录或未选择课程时跳转到登录页 / 课程选择页
+const guardPassed = requireSessionAndCourse();
 
-// 确保localStorage中有participant_id，供api_client.js使用
-if (!localStorage.getItem('participant_id')) {
-    localStorage.setItem('participant_id', 'user123');
+// 为行为追踪器设置participant_id（来自登录后初始化的会话）
+if (!window.participantId) {
+    window.participantId = getParticipantId() || '';
 }
 
 // ==================== 主应用初始化 ====================
@@ -1640,6 +1639,8 @@ function askAIAboutElement() {
 // ==================== 自动初始化 ====================
 // 页面加载完成后自动初始化主应用
 document.addEventListener('DOMContentLoaded', async () => {
+    if (!guardPassed) return;
+
     try {
         trackReferrer();
         // 设置标题点击跳转到知识图谱页面
