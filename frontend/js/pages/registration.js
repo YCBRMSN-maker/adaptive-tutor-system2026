@@ -13,11 +13,35 @@ import { getSelectedCourse, requireSelectedCourse } from '../modules/courses.js'
 const loginReady = requireLogin();
 const courseReady = loginReady ? requireSelectedCourse() : false;
 
+// 课程 → 学习入口页；未列出的课程统一走通用学习页
+const COURSE_ENTRY_PAGES = {
+    'c-programming': '/pages/oj.html',   // C 语言：算法学习（在线判题）
+};
+const DEFAULT_LEARNING_URL = '/pages/learning_page.html';
+
+// 当前所选课程。注意不能只在首次加载时读一次：点「切换课程」后浏览器可能用缓存
+// 还原本页（DOMContentLoaded 不会重跑），那样拿到的还是旧课程
+let selectedCourse = getSelectedCourse();
+
+/**
+ * 重新读取所选课程并刷新页面上的课程回显
+ */
+function refreshCourseContext() {
+    selectedCourse = getSelectedCourse();
+
+    const courseContext = document.getElementById('course-context');
+    const courseContextName = document.getElementById('course-context-name');
+    if (selectedCourse && courseContext && courseContextName) {
+        courseContextName.textContent = selectedCourse.name;
+        courseContext.hidden = false;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     if (!loginReady || !courseReady) return;
 
     // 版本标记：一眼看出浏览器加载的是哪一版脚本
-    console.log('%c[OJ-INTEGRATION] registration.js v20261101c 已加载', 'color:#4f46e5;font-weight:bold');
+    console.log('%c[OJ-INTEGRATION] registration.js v20261104a 已加载', 'color:#4f46e5;font-weight:bold');
 
     // 初始化配置
     await initializeConfig();
@@ -27,15 +51,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const startButton = document.getElementById('start-button');
     const nicknameInput = document.getElementById('nickname-input');
     const themeSelector = document.getElementById('theme-selector');
-    const selectedCourse = getSelectedCourse();
 
     // 回显当前课程，并提供切换课程入口
-    const courseContext = document.getElementById('course-context');
-    const courseContextName = document.getElementById('course-context-name');
-    if (selectedCourse && courseContext && courseContextName) {
-        courseContextName.textContent = selectedCourse.name;
-        courseContext.hidden = false;
-    }
+    refreshCourseContext();
 
     // 昵称默认使用登录时的昵称，用户仍可修改
     const currentUser = getCurrentUser();
@@ -111,14 +129,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     console.log('[开始学习] 课程 id =', courseId, ' 返回码 =', result.code);
 
-                    // C语言程序设计：会话创建成功后直接进入在线判题
-                    if (courseId === 'c-programming') {
-                        window.location.href = '/pages/oj.html';
+                    // 按课程决定进入哪个学习入口：C 语言进算法学习（在线判题），其余进通用学习页
+                    const entryUrl = COURSE_ENTRY_PAGES[courseId] || DEFAULT_LEARNING_URL;
+                    console.log('[开始学习] 入口 =', entryUrl);
+
+                    if (entryUrl === DEFAULT_LEARNING_URL) {
+                        navigateTo(DEFAULT_LEARNING_URL, '1_1', true);
                         return;
                     }
 
-                    // 其他课程：直接跳转到学习页面
-                    navigateTo('/pages/learning_page.html', '1_1', true);
+                    window.location.href = entryUrl;
                 } else {
                     showError(result.message || '启动失败，请重试');
                     // 恢复按钮状态
@@ -204,6 +224,9 @@ window.addEventListener('pageshow', (event) => {
         if (!requireLogin()) return;
         if (!requireSelectedCourse()) return;
     }
+
+    // 从缓存还原时 DOMContentLoaded 不会重跑，课程可能已被切走，需要重新读取
+    refreshCourseContext();
 
     const startButton = document.getElementById('start-button');
     if (startButton) {
