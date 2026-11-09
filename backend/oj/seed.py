@@ -14,7 +14,6 @@ SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "pr
 def main() -> int:
     if not os.path.exists(SEED_PATH):
         print(f"找不到种子文件：{SEED_PATH}", file=sys.stderr)
-        print("请先运行 python tools/build_seed.py 生成", file=sys.stderr)
         return 1
 
     init_db()

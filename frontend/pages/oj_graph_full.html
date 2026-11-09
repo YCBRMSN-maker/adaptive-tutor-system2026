@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sync-PBL学习平台 - 知识图谱</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/oj-graph.css">
+  <script src="../js/modules/iconify-icon.min.js"></script>
+  <script src="../js/modules/cytoscape.min.js"></script>
+</head>
+
+<body class="oj-graph-page oj-graph-full-page">
+  <div class="main-container">
+    <header class="top-header-lean">
+      <h1 class="header-title" id="headerTitle">
+        <iconify-icon icon="mdi:graph-outline" width="24" height="24"></iconify-icon>
+        知识图谱
+      </h1>
+      <div class="user-profile">
+        <button class="back-button" id="backButton">
+          <iconify-icon icon="mdi:arrow-left" width="20" height="20"></iconify-icon>
+          返回目录
+        </button>
+        <iconify-icon icon="mdi:account-circle" width="36" height="36"></iconify-icon>
+      </div>
+    </header>
+
+    <div class="content-container oj-graph-full-layout">
+      <section class="panel oj-graph-panel">
+        <div class="panel-header">
+          <div class="oj-panel-title">
+            <iconify-icon icon="mdi:graph-outline" width="18" height="18"></iconify-icon>
+            <h2>学习情况</h2>
+          </div>
+          <div class="oj-graph-tools">
+            <button class="oj-icon-btn" id="zoomInBtn" title="放大">
+              <iconify-icon icon="mdi:magnify-plus-outline" width="16" height="16"></iconify-icon>
+            </button>
+            <button class="oj-icon-btn" id="zoomOutBtn" title="缩小">
+              <iconify-icon icon="mdi:magnify-minus-outline" width="16" height="16"></iconify-icon>
+            </button>
+            <button class="oj-icon-btn" id="fitBtn" title="居中">
+              <iconify-icon icon="mdi:fit-to-screen-outline" width="16" height="16"></iconify-icon>
+            </button>
+          </div>
+        </div>
+        <div class="oj-graph-body">
+          <div id="cy" class="oj-cy"></div>
+          <div class="oj-graph-tip">
+            <iconify-icon icon="mdi:information-outline" width="14" height="14"></iconify-icon>
+            单击章节展开题目，双击章节进入学习，单击题目直接练习
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="../js/pages/ojGraphFullPage.js"></script>
+</body>
+
+</html>

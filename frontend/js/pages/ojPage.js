@@ -4,6 +4,21 @@
  * 后端接口统一走 /oj-api/ 前缀（nginx 反代到 oj-backend:8000）
  */
 
+import { requireSessionAndCourse } from '../modules/pageGuard.js';
+
+const guardPassed = requireSessionAndCourse();
+
+import { getParticipantId } from '../modules/session.js';
+import chatModule from '../modules/chat.js';
+import tracker from '../modules/behavior_tracker.js';
+import apiClient from '../api_client.js';
+import { showSectionFeedback } from '../modules/section_feedback.js';
+import {
+  installOjChatTransport,
+  clearChatHistory,
+  pushAiHint as pushHint,
+} from '../modules/oj_chat_transport.js';
+
 const API = '/oj-api';
 
 // ---------------- 状态 ----------------
@@ -27,219 +42,252 @@ const TEMPLATES = {
   Python3: '# 请在下方编写代码\n',
 };
 // ---------------- 初始化 ----------------
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  if (!guardPassed) return;
+  init();
+});
 
 async function init() {
-  bindLayout();
-  bindEditor();
-  bindChat();
+  await bindEditor();
+  bindChatPanel();
   bindBack();
+  bindDiagButton();
 
   await loadProblems();
-  restoreLayout();
+  initMainChat();
+  initBehaviorTracking();
+  bindHintButton();
+}
 
-  // 顶部显示通过数
-  updateProgress();
+// 直接复用主站 test_page 的 AI 助教：chat.js + WebSocket + Celery 流式链路
+function initMainChat() {
+  if (!getParticipantId()) {
+    console.warn('[OJ] 没有 participant_id，AI 助教需要登录态');
+    return;
+  }
+
+  chatModule.init('test', current ? String(current.id) : 'oj', {
+    enableEnterToSend: false,
+  });
+
+  clearChatHistory(chatModule, '遇到问题可以问我，我会先给提示，引导你自己想出来，不直接给答案。');
+
+  installOjChatTransport(chatModule, {
+    mode: 'test',
+    buildPrompt: buildOjPrompt,
+    getTopicId: () => `oj_${current ? current.id : 0}`,
+    getParticipantId,
+    onSend: (message) => {
+      activity.aiAskCount += 1;
+      tracker.logEvent('ai_help_request', {
+        topic_id: current ? `oj_${current.id}` : null,
+        message_length: message.length,
+      });
+    },
+    onDone: () => checkAssistance(),
+  });
+}
+
+// 把当前 C 语言题目和代码明确写进消息，避免主站按 HTML 课生成回复
+function buildOjPrompt(message) {
+  const lines = [message, '', '【场景】C 语言算法练习，不是 HTML/CSS/JS 前端课程。'];
+
+  if (current) {
+    lines.push(`【题目】${current.title}`);
+    const desc = current.description || current.fullDescription || '';
+    if (desc) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = desc;
+      lines.push(`【题面】${(tmp.textContent || '').trim().slice(0, 800)}`);
+    }
+  }
+
+  const code = getCode().trim();
+  if (code) {
+    lines.push(`【我的 C 代码】\n\`\`\`c\n${code.slice(0, 1500)}\n\`\`\``);
+  }
+  lines.push('请只围绕这道 C 语言题给提示，不要引用 HTML 标签、CSS 或前端内容。');
+  return lines.join('\n');
+}
+
+/* ---------------- 主站行为追踪 / 主动提示（只调用，不改主站模块） ---------------- */
+
+function initBehaviorTracking() {
+  // tracker._sendPayload 依赖全局 apiClient
+  window.apiClient = apiClient;
+  window.currentTopicId = current ? `oj_${current.id}` : null;
+
+  if (editor) {
+    editor.onDidChangeModelContent(() => {
+      markActive();
+      clearTimeout(codeEditTimer);
+      codeEditTimer = setTimeout(() => {
+        tracker.logEvent('code_edit', {
+          topic_id: window.currentTopicId,
+          code_length: getCode().length,
+        });
+      }, 2000);
+    });
+  }
+
+  document.addEventListener('click', markActive);
+  document.addEventListener('keydown', markActive);
+
+  // 60 秒无操作，主动问一次
+  setInterval(() => {
+    const idle = Date.now() - activity.lastActive;
+    if (idle > 60000 && !activity.idleHintShown) {
+      activity.idleHintShown = true;
+      tracker.logEvent('user_idle', { idle_ms: idle, topic_id: window.currentTopicId });
+      pushHint(chatModule, '已经有一会儿没有操作了，需要我给点思路吗？可以告诉我你卡在哪一步。');
+    }
+  }, 10000);
+}
+
+function markActive() {
+  activity.lastActive = Date.now();
+  activity.idleHintShown = false;
+}
+
+// 把 OJ 判题结果转成主站反馈模块能识别的「检查点 N 失败: ...」格式
+function buildFailureDetails(detail) {
+  if (!detail) return [];
+  const out = [];
+
+  (detail.cases || []).forEach((c, i) => {
+    if (c.status && c.status !== 'AC') {
+      out.push(`检查点 ${c.index || i + 1} 失败: ${c.message || c.status}`);
+    }
+  });
+  (detail.diagnostics || []).forEach((d) => {
+    out.push(`检查点 ${out.length + 1} 失败: ${d.type_zh || d.explain || '编译错误'}`);
+  });
+  if (!out.length && detail.status !== 'AC') {
+    out.push(`检查点 1 失败: ${detail.message || detail.status}`);
+  }
+  return out;
+}
+
+// 通过之后弹出主站的「自我评价 → 系统评价」两步反馈
+function showOjSectionFeedback(detail) {
+  if (!current) return;
+
+  showSectionFeedback({
+    topicId: `oj_${current.id}`,
+    topicLabel: current.title || `题目 ${current.id}`,
+    feedbackType: 'section',
+    submissionMsg: { passed: true, details: [] },
+    failedSubmissionCount: activity.failedSubmissionCount,
+    accumulatedFailures: activity.accumulatedFailures.slice(),
+    lastFailedCode: { html: getCode(), css: '', js: '' },
+    task: null,
+  }).then((result) => {
+    tracker.logEvent('ai_help_request', {
+      topic_id: window.currentTopicId,
+      source: 'section_feedback',
+      submitted: !!(result && result.submitted),
+      skipped: !!(result && result.skipped),
+    });
+  }).catch((err) => console.warn('[OJ] 小节反馈异常:', err));
+}
+
+function reportSubmission(detail) {
+  activity.submissionCount += 1;
+  const ok = !!detail && detail.status === 'AC';
+  if (!ok) {
+    activity.failedSubmissionCount += 1;
+    activity.accumulatedFailures.push(...buildFailureDetails(detail));
+  }
+
+  tracker.logEvent('test_submission', {
+    topic_id: window.currentTopicId,
+    status: detail ? detail.status : 'SE',
+    passed: ok,
+  });
+  checkAssistance();
+}
+
+// 照主站 test_page 的阈值：提交过 + 问了 4 次以上且偶数次 → 主动给提示
+function checkAssistance() {
+  if (activity.assistanceShown) return;
+  if (activity.submissionCount < 1) return;
+  if (activity.aiAskCount >= 4 && activity.aiAskCount % 2 === 0) {
+    activity.assistanceShown = true;
+    pushHint(chatModule, '我注意到你已经问了好几次、也提交过代码。要不要我给你几个针对性的提示，帮你把卡住的地方拆开？');
+  }
+}
+
+function bindHintButton() {
+  const btn = document.getElementById('problem-solving-hint-btn');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    const input = document.getElementById('user-message');
+    if (!input) return;
+
+    // 主站 EventType 没有 problem_solving_hint_requested，用合法的 ai_help_request
+    tracker.logEvent('ai_help_request', {
+      topic_id: window.currentTopicId,
+      source: 'problem_solving_hint_button',
+    });
+
+    // 复用 chatModule.sendMessage，走主站 AI 接口并渲染到聊天框
+    input.value = '请针对这道题给我一点思路提示，讲清楚解题思路和关键知识点，但不要直接给完整代码。';
+    chatModule.sendMessage('test', `oj_${current ? current.id : 0}`);
+  });
 }
 
 function bindBack() {
   $('backButton').addEventListener('click', () => {
-    // C 语言课程没有对应的 learning_page 内容（那边的 topic 是 HTML 课的），
-    // 所以回到选课页，可以重新选课或再次进入
-    window.location.href = '/pages/course_selection.html';
+    // 一级一级返回：通常是从学习页点「开始练习」进来的
+    let sameOrigin = false;
+    try {
+      sameOrigin = !!document.referrer
+        && new URL(document.referrer).origin === location.origin;
+    } catch {
+      sameOrigin = false;
+    }
+
+    if (sameOrigin && history.length > 1) {
+      history.back();
+    } else {
+      window.location.href = '/pages/oj_learn.html';
+    }
   });
 }
 
-// ---------------- 题目列表 ----------------
+function bindDiagButton() {
+  const btn = $('aiDiagBtn');
+  if (btn) btn.addEventListener('click', diagnoseErrors);
+}
+
+// ---------------- 题目加载 ----------------
 async function loadProblems() {
   try {
     const res = await fetch(`${API}/problems`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     problems = await res.json();
-    renderProblemList();
-    $('ojCount').textContent = `${problems.length} 道`;
 
-    const params = new URLSearchParams(window.location.search);
-    const pid = Number(params.get('pid'));          // 从学习页点具体题目过来
-    const chapter = Number(params.get('chapter'));  // 从学习页点「进入测试」过来
+    const params = new URLSearchParams(location.search);
+    const pid = Number(params.get('pid'));
+    const chapter = Number(params.get('chapter'));
+    const target = pid ? problems.find((x) => x.id === pid) : null;
 
-    const target = pid ? problems.find((p) => p.id === pid) : null;
-
-    // 带 chapter 参数但没指定题目时，选中该章的第一道题
+    // 只带 chapter 时，从章节接口取第一道题
     let chapterFirstId = null;
     if (!target && chapter) {
-      const box = document.querySelector(`.oj-chapter-items[data-ch="${chapter}"]`);
-      const firstItem = box && box.querySelector('.oj-problem-item');
-      if (firstItem) chapterFirstId = Number(firstItem.dataset.id);
+      const r = await fetch(`${API}/lessons/${chapter}`);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.problems && d.problems.length) chapterFirstId = Number(d.problems[0]);
+      }
     }
 
     const startId = target ? target.id : (chapterFirstId ?? (problems[0] ? problems[0].id : null));
-
-    if (startId != null) {
-      await selectProblem(startId);
-    }
-  } catch (err) {
-    $('problemList').innerHTML =
-      `<div class="oj-list-loading">题目加载失败：${err.message}</div>`;
-  }
-}
-
-function renderProblemList() {
-  // 按 source（如 "A · 输入输出与复杂度"）分组
-  const groups = new Map();
-  for (const p of problems) {
-    const key = p.source || '其他';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(p);
-  }
-
-  const frag = document.createDocumentFragment();
-  let chapterNo = 0;
-
-  for (const [groupName, items] of groups) {
-    chapterNo += 1;
-    const no = chapterNo;
-    // "A · 输入输出与复杂度" → "输入输出与复杂度"
-    const pureName = groupName.includes('·')
-      ? groupName.split('·').slice(1).join('·').trim()
-      : groupName;
-
-    // 第一层：章节标题（点击 → 中间区域显示该章学习内容）
-    const head = document.createElement('div');
-    head.className = 'oj-chapter-head';
-    head.dataset.ch = String(no);
-    head.innerHTML =
-      `<iconify-icon icon="mdi:book-open-variant" width="15" height="15" class="oj-ch-arrow"></iconify-icon>` +
-      `<span class="oj-ch-name">第 ${no} 章 · ${escapeHtml(pureName)}</span>` +
-      `<span class="oj-ch-count">${items.length}</span>`;
-    head.addEventListener('click', () => selectChapter(no, pureName, items));
-    frag.appendChild(head);
-
-    // 第二层：该章题目（常显）
-    const box = document.createElement('div');
-    box.className = 'oj-chapter-items';
-    box.dataset.ch = String(no);
-    for (const p of items) {
-      const el = document.createElement('div');
-      el.className = 'oj-problem-item';
-      el.dataset.id = String(p.id);
-      el.innerHTML =
-        `<span class="oj-p-title">${escapeHtml(p.title)}</span>` +
-        `<span class="oj-diff" data-d="${escapeHtml(p.difficulty || '')}">${escapeHtml(p.difficulty || '')}</span>`;
-      el.addEventListener('click', () => selectProblem(p.id));
-      box.appendChild(el);
-    }
-    frag.appendChild(box);
-  }
-
-  const list = $('problemList');
-  list.innerHTML = '';
-  list.appendChild(frag);
-}
-
-/** 展开某一章的题目，其余章收起（保留函数，供旧逻辑调用） */
-function expandChapter(no) {
-  for (const box of document.querySelectorAll('.oj-chapter-items')) {
-    box.classList.toggle('is-open', box.dataset.ch === String(no));
-  }
-  for (const head of document.querySelectorAll('.oj-chapter-head')) {
-    head.classList.toggle('is-open', head.dataset.ch === String(no));
-  }
-}
-
-/* ---------------- 章节学习内容（同页切换，不跳转） ---------------- */
-
-async function selectChapter(no, name, items) {
-  // 左栏：高亮章节、取消题目高亮
-  for (const el of document.querySelectorAll('.oj-chapter-head')) {
-    el.classList.toggle('is-active', el.dataset.ch === String(no));
-  }
-  for (const el of document.querySelectorAll('.oj-problem-item')) {
-    el.classList.remove('is-active');
-  }
-
-  
-  // 学习模式：收起代码区，把空间全给内容
-  document.body.classList.add('is-lesson-mode');
-
-  // 切到学习视图时清掉上一次的判题结果
-  diagnosis = null;
-  lastDetail = null;
-  errorLines.clear();
-  warnLines.clear();
-  aiLines.clear();
-  renderResult(null);
-
-  $('problemTitle').textContent = `第 ${no} 章 · ${name}`;
-  $('problemMeta').innerHTML = `<span>${items.length} 道练习</span>`;
-  $('problemBody').innerHTML = '<div class="oj-empty">加载章节内容…</div>';
-
-  try {
-    const res = await fetch(`${API}/lessons/${no}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const d = await res.json();
-    renderLessonInto(d);
+    if (startId != null) await selectProblem(startId);
   } catch (err) {
     $('problemBody').innerHTML =
-      `<div class="oj-empty">章节内容加载失败：${escapeHtml(err.message)}</div>`;
-  }
-}
-
-function renderLessonInto(d) {
-  const points = (d.points || []).map((p) => `<li>${escapeHtml(p)}</li>`).join('');
-
-  const pitfalls = (d.pitfalls || []).map((p) => `
-    <li>
-      <iconify-icon icon="mdi:alert-circle-outline" width="15" height="15"></iconify-icon>
-      <span>${escapeHtml(p)}</span>
-    </li>`).join('');
-
-  const problemLinks = (d.problems || []).map((pid) => {
-    const p = problems.find((x) => x.id === pid);
-    return `
-      <div class="oj-lesson-problem" data-pid="${pid}">
-        <iconify-icon icon="mdi:code-tags" width="15" height="15"></iconify-icon>
-        <span class="oj-lesson-pid">#${pid}</span>
-        <span>${escapeHtml(p ? p.title : '')}</span>
-      </div>`;
-  }).join('');
-
-  $('problemBody').innerHTML = `
-    <div class="oj-lesson">
-      <div class="oj-lesson-intro">${escapeHtml(d.intro || '')}</div>
-
-      ${d.definition ? `
-        <div class="oj-sub-title">概念定义</div>
-        <div class="oj-lesson-definition">${escapeHtml(d.definition)}</div>
-      ` : ''}
-
-      ${d.structure ? `
-        <div class="oj-sub-title">结构示意</div>
-        <pre class="oj-lesson-structure">${escapeHtml(d.structure)}</pre>
-      ` : ''}
-
-      <div class="oj-sub-title">本章要点</div>
-      <ol class="oj-lesson-points">${points}</ol>
-
-      ${d.example ? `
-        <div class="oj-sub-title">代码示例</div>
-        <pre class="oj-lesson-code">${escapeHtml(d.example)}</pre>
-      ` : ''}
-
-      ${pitfalls ? `
-        <div class="oj-sub-title">常见错误</div>
-        <ul class="oj-lesson-pitfalls">${pitfalls}</ul>
-      ` : ''}
-
-      ${problemLinks ? `
-        <div class="oj-sub-title">本章练习</div>
-        <div class="oj-lesson-problems">${problemLinks}</div>
-      ` : ''}
-    </div>
-  `;
-
-  for (const el of document.querySelectorAll('.oj-lesson-problem')) {
-    el.addEventListener('click', () => selectProblem(Number(el.dataset.pid)));
+      `<div class="oj-empty">题目加载失败：${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -248,8 +296,11 @@ async function selectProblem(id) {
   if (!brief) return;
 
   // 切换前存下当前代码
-  if (current) codeCache[current.id] = $('codeInput').value;
+  if (current) codeCache[current.id] = getCode();
   current = brief;
+  if (chatModule && chatModule.currentContentId !== undefined) {
+    chatModule.currentContentId = String(brief.id);
+  }
   diagnosis = null;
   lastSubmissionId = null;
   errorLines.clear();
@@ -257,23 +308,10 @@ async function selectProblem(id) {
   warnLines.clear();
   renderResult(null);
 
-  for (const el of document.querySelectorAll('.oj-problem-item')) {
-    el.classList.toggle('is-active', el.dataset.id === String(id));
-  }
-  // 切回题目视图时，取消章节高亮
-  for (const el of document.querySelectorAll('.oj-chapter-head')) {
-    el.classList.remove('is-active');
-  }
-  // 退出学习模式，恢复代码区
-  document.body.classList.remove('is-lesson-mode');
-  // 恢复上下分栏高度
-  $('problemPane').style.height = localStorage.getItem('oj.problemHeight')
-    ? `${localStorage.getItem('oj.problemHeight')}px` : '';
-
   // 先用标题占位，再拉完整题面
   $('problemTitle').textContent = brief.title;
   $('problemBody').innerHTML = '<div class="oj-empty">加载题目…</div>';
-  $('codeInput').value = codeCache[brief.id] || TEMPLATES[currentLang] || '';
+  setCode(codeCache[brief.id] || TEMPLATES[currentLang] || '');
   syncGutter();
 
   // 列表接口只给精简字段（id/title/难度…），description 这些要单独取
@@ -291,6 +329,9 @@ async function selectProblem(id) {
 
 function renderProblem(p) {
   $('problemTitle').textContent = p.title;
+  if (current) current.fullDescription = p.description || '';
+  // 顶栏原来显示题目总数，列表移除后改为显示当前题目的知识点
+  $('ojProgress').textContent = p.knowledge || '';
   $('problemMeta').innerHTML =
     `<span>时间限制 ${p.time_limit} ms</span>` +
     `<span>内存限制 ${p.memory_limit} MB</span>` +
@@ -312,80 +353,125 @@ function renderProblem(p) {
 }
 
 function updateProgress() {
-  $('ojProgress').textContent = `${problems.length} 道题`;
+  // 题目列表已移除，顶栏改为显示当前知识点（在 renderProblem 里设置）
 }
 
 // ---------------- 编辑器 ----------------
-function bindEditor() {
-  const input = $('codeInput');
-  const gutter = $('gutter');
+// ---------------- 编辑器（Monaco，与主站测试页同一份 vendor） ----------------
+let editor = null;
+let decorationIds = [];
 
-  const sync = () => {
-    syncGutter();
-  };
+// 与主站 test_page 一致的行为计数，用于卡住检测与主动提示
+const activity = {
+  aiAskCount: 0,
+  submissionCount: 0,
+  failedSubmissionCount: 0,
+  lastActive: Date.now(),
+  idleHintShown: false,
+  assistanceShown: false,
+  accumulatedFailures: [],
+};
+let codeEditTimer = null;
 
-  input.addEventListener('input', sync);
-  input.addEventListener('scroll', () => {
-    gutter.scrollTop = input.scrollTop;
-  });
-  input.addEventListener('keydown', (e) => {
-    // Tab 插入 4 个空格
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = input.selectionStart;
-      const end = input.selectionEnd;
-      input.value = input.value.slice(0, start) + '    ' + input.value.slice(end);
-      input.selectionStart = input.selectionEnd = start + 4;
-      syncGutter();
-    }
-  });
+const MONACO_LANG = { C: 'c', 'C++': 'cpp', Python3: 'python' };
 
-  $('languageSelect').addEventListener('change', (e) => {
-    currentLang = e.target.value;
-    // 只有代码是空模板时才替换，避免覆盖用户写的内容
-    const val = input.value.trim();
-    const isTemplate = Object.values(TEMPLATES).some((t) => t.trim() === val);
-    if (!val || isTemplate) {
-      input.value = TEMPLATES[currentLang] || '';
-      syncGutter();
-    }
-  });
-
-  $('resetBtn').addEventListener('click', () => {
-    if (!confirm('确定要清空当前代码吗？')) return;
-    input.value = TEMPLATES[currentLang] || '';
-    syncGutter();
-    renderResult(null);
-    errorLines.clear();
-    aiLines.clear();
-    warnLines.clear();
-    syncGutter();
-  });
-
-  $('submitBtn').addEventListener('click', submit);
+function getCode() {
+  return editor ? editor.getValue() : '';
 }
 
-function syncGutter() {
-  const input = $('codeInput');
-  const gutter = $('gutter');
-  const count = input.value.split('\n').length;
+function setCode(text) {
+  if (editor) editor.setValue(text || '');
+}
 
-  let html = '';
-  for (let i = 1; i <= count; i++) {
-    let cls = '';
-    if (errorLines.has(i)) cls = 'ln-err';
-    else if (warnLines.has(i)) cls = 'ln-warn';
-    else if (aiLines.has(i)) cls = 'ln-ai';
-    html += `<span class="${cls}">${i}</span>`;
-  }
-  gutter.innerHTML = html;
-  gutter.scrollTop = input.scrollTop;
+function bindEditor() {
+  return new Promise((resolve) => {
+    if (typeof require === 'undefined') {
+      console.error('Monaco loader 未加载，编辑器无法初始化');
+      resolve(null);
+      return;
+    }
+
+    require(['vs/editor/editor.main'], () => {
+      editor = monaco.editor.create(document.getElementById('monacoEditor'), {
+        value: TEMPLATES[currentLang] || '',
+        language: MONACO_LANG[currentLang] || 'c',
+        theme: 'vs',
+        fontSize: 13,
+        lineHeight: 21,
+        fontFamily: "'SFMono-Regular', Consolas, monospace",
+        tabSize: 4,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        glyphMargin: false,
+        lineNumbersMinChars: 3,
+        lineDecorationsWidth: 6,
+        renderLineHighlight: 'line',
+        scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+      });
+
+      // 暴露给调试与端到端脚本使用
+      window.__ojEditor = editor;
+
+      editor.onDidChangeModelContent(() => syncGutter());
+
+      document.getElementById('languageSelect').addEventListener('change', (e) => {
+        currentLang = e.target.value;
+        // 只有代码还是模板时才替换，避免覆盖用户写的内容
+        const val = getCode().trim();
+        const isTemplate = Object.values(TEMPLATES).some((t) => t.trim() === val);
+        if (!val || isTemplate) {
+          setCode(TEMPLATES[currentLang] || '');
+          const model = editor.getModel();
+          if (model) monaco.editor.setModelLanguage(model, MONACO_LANG[currentLang] || 'c');
+        }
+      });
+
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        if (!confirm('确定要清空当前代码吗？')) return;
+        setCode(TEMPLATES[currentLang] || '');
+        errorLines.clear();
+        aiLines.clear();
+        warnLines.clear();
+        syncGutter();
+        renderResult(null);
+      });
+
+      document.getElementById('submitBtn').addEventListener('click', submit);
+
+      resolve(editor);
+    });
+  });
+}
+
+// 用行装饰标记错误 / 警告 / AI 定位行（替代原来的自绘行号）
+function syncGutter() {
+  if (!editor) return;
+
+  const decorations = [];
+  const push = (line, cls) => {
+    if (!line || line < 1) return;
+    decorations.push({
+      range: new monaco.Range(line, 1, line, 1),
+      options: {
+        isWholeLine: true,
+        className: cls,
+        lineNumberClassName: cls.replace('-line-', '-ln-'),
+      },
+    });
+  };
+
+  for (const n of errorLines) push(n, 'oj-line-err');
+  for (const n of warnLines) push(n, 'oj-line-warn');
+  for (const n of aiLines) push(n, 'oj-line-ai');
+
+  decorationIds = editor.deltaDecorations(decorationIds, decorations);
 }
 
 // ---------------- 提交判题 ----------------
 async function submit() {
   if (!current || submitting) return;
-  const code = $('codeInput').value;
+  const code = getCode();
   const meaningful = code
     .split('\n')
     .map((l) => l.replace(/#.*$/, '').replace(/\/\/.*$/, '').trim())
@@ -412,6 +498,7 @@ async function submit() {
         problem_id: current.id,
         language: currentLang,
         code,
+        participant_id: getParticipantId(),
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -437,6 +524,8 @@ async function poll(sid) {
           ? s.detail
           : { status: s.status, message: s.message };
         renderResult(detail);
+        reportSubmission(detail);
+        if (detail.status === 'AC') showOjSectionFeedback(detail);
         return;
       }
     } catch {
@@ -449,16 +538,41 @@ async function poll(sid) {
 // ---------------- 结果渲染 ----------------
 let lastDetail = null;
 
+// 把「编译器原文：xxx」从说明里拆出来单独成段，
+// 否则中文折行会把「编译器原文」拆到两行
+function splitExplain(text) {
+  const s = String(text || '');
+  const key = '编译器原文';
+  const idx = s.indexOf(key);
+  if (idx < 0) return { main: s, raw: '' };
+  return {
+    main: s.slice(0, idx).trim(),
+    raw: s.slice(idx + key.length).replace(/^[：:]\s*/, ''),
+  };
+}
+
+function explainHtml(text) {
+  const { main, raw } = splitExplain(text);
+  const mainPart = main ? `<span>${escapeHtml(main)}</span>` : '';
+  const rawPart = raw ? `<em class="oj-raw">编译器原文：${escapeHtml(raw)}</em>` : '';
+  return mainPart + rawPart;
+}
+
 function renderResult(detail) {
   if (detail) lastDetail = detail;
   const box = $('resultPanel');
 
   if (!detail) {
-    box.innerHTML = '';
+    box.innerHTML = `<div class="oj-result-placeholder">
+        <iconify-icon icon="mdi:progress-clock" width="32" height="32"></iconify-icon>
+        <p>写好代码后点击提交，稍等就会出现测试结果</p>
+      </div>`;
     errorLines.clear();
     warnLines.clear();
     aiLines.clear();
     syncGutter();
+    const footer = $('aiDiagFooter');
+    if (footer) footer.style.display = 'none';
     return;
   }
 
@@ -496,7 +610,7 @@ function renderResult(detail) {
           <span class="oj-diag-type">${escapeHtml(d.type_zh || '编译错误')}</span>
           ${d.knowledge ? `<span class="oj-diag-know">${escapeHtml(d.knowledge)}</span>` : ''}
         </div>
-        <div class="oj-diag-explain">${escapeHtml(d.explain || '')}</div>
+        <div class="oj-diag-explain">${explainHtml(d.explain)}</div>
         ${renderSnippet(d.snippet)}
       </div>`;
   }
@@ -509,7 +623,7 @@ function renderResult(detail) {
         <div class="oj-warn-item">
           <span>${escapeHtml(lineLabel(w))}</span>
           <span><b>${escapeHtml(w.type_zh || '')}</b></span>
-          <span>${escapeHtml(w.explain || '')}</span>
+          <span>${explainHtml(w.explain)}</span>
         </div>`).join('')}
     </div>`;
   }
@@ -528,18 +642,15 @@ function renderResult(detail) {
             <span class="oj-ai-type">${escapeHtml(e.type || '')}</span>
           </div>
           <div class="oj-ai-why">${escapeHtml(e.why || '')}</div>
+          ${renderSnippet(buildAiSnippet(e.line))}
         </div>`).join('')}
     </div>`;
   }
 
-  // 错误定位按钮
-  if (canDiagnose(detail) && !diagnosis) {
-    html += `<div class="oj-ai-action">
-      <button class="oj-btn" id="aiDiagBtn" ${diagnosing ? 'disabled' : ''}>
-        ${diagnosing ? '正在分析代码…' : '错误定位'}
-      </button>
-      <span class="oj-ai-hint">让 AI 帮你找出哪几行有问题、为什么错</span>
-    </div>`;
+  // 错误定位入口放在面板底部（对齐主站 test_page 的询问 AI 按钮位置）
+  const diagFooter = $('aiDiagFooter');
+  if (diagFooter) {
+    diagFooter.style.display = (canDiagnose(detail) && !diagnosis) ? 'flex' : 'none';
   }
 
   // 测试点
@@ -555,9 +666,6 @@ function renderResult(detail) {
 
   html += '</div>';
   box.innerHTML = html;
-
-  const aiBtn = $('aiDiagBtn');
-  if (aiBtn) aiBtn.addEventListener('click', diagnoseErrors);
 }
 
 function renderSnippet(snippet) {
@@ -570,6 +678,25 @@ function renderSnippet(snippet) {
   return `<div class="oj-diag-code">${text}</div>`;
 }
 
+// 按行号从编辑器内容里截一段，格式与编译器返回的片段保持一致
+function buildAiSnippet(lineNo) {
+  const n = Number(lineNo);
+  if (!n || n < 1) return [];
+  const lines = getCode().split('\n');
+  const code = lines[n - 1];
+  if (code === undefined) return [];
+
+  const no = String(n);
+  const pad = ' '.repeat(no.length);
+  const indent = Math.max(0, code.search(/\S/));
+  const len = Math.max(3, code.trim().length || 3);
+
+  return [
+    `${no} | ${code}`,
+    `${pad} | ${' '.repeat(indent)}${'^'.repeat(len)}`,
+  ];
+}
+
 function lineLabel(d) {
   if (d.fix_line && d.fix_line !== d.line) return `改第 ${d.fix_line} 行`;
   if (!d.line) return '链接阶段';
@@ -580,7 +707,7 @@ function canDiagnose(detail) {
   const st = detail.status;
   if (!st || st === 'AC' || st === 'CE' || st === 'Pending') return false;
   // 代码太短（只有框架）就不给按钮
-  const meaningful = $('codeInput').value
+  const meaningful = getCode()
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('//') && !l.startsWith('#') &&
@@ -592,7 +719,9 @@ async function diagnoseErrors() {
   if (!current || !lastSubmissionId || diagnosing) return;
   diagnosing = true;
   const btn = $('aiDiagBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '正在分析代码…'; }
+  const label = $('aiDiagText');
+  if (btn) btn.disabled = true;
+  if (label) label.textContent = '正在分析代码…';
 
   try {
     const res = await fetch(`${API}/diagnose`, {
@@ -616,172 +745,29 @@ async function diagnoseErrors() {
     alert(`定位请求失败：${err.message}`);
   } finally {
     diagnosing = false;
+    if (btn) btn.disabled = false;
+    if (label) label.textContent = 'AI 定位';
   }
 }
 
-// ---------------- AI 聊天 ----------------
-function bindChat() {
-  const send = async () => {
-    const input = $('chatInput');
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = '';
-
-    appendMsg('is-user', text);
-    const loadingEl = appendMsg('is-ai', '思考中…');
-
-    try {
-      const res = await fetch(`${API}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          problem_id: current ? current.id : null,
-          code: $('codeInput').value || null,
-        }),
-      });
-      const r = await res.json();
-      loadingEl.textContent = r.reply || '（无回复）';
-    } catch (err) {
-      loadingEl.textContent = `请求失败：${err.message}`;
-    }
-  };
-
-  $('chatSendBtn').addEventListener('click', send);
-  $('chatInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
-  });
-
+// ---------------- AI 助教面板（内容由主站 chat.js 提供） ----------------
+function bindChatPanel() {
   $('chatCloseBtn').addEventListener('click', () => toggleChat(false));
   $('chatToggleBtn').addEventListener('click', () => {
     toggleChat($('ojChat').classList.contains('is-hidden'));
   });
 }
 
-function appendMsg(cls, text) {
-  const el = document.createElement('div');
-  el.className = `oj-msg ${cls}`;
-  el.textContent = text;
-  const body = $('chatBody');
-  body.appendChild(el);
-  body.scrollTop = body.scrollHeight;
-  return el;
-}
-
 function toggleChat(show) {
   const chat = $('ojChat');
+  const layout = $('ojLayout');
+  if (!chat || !layout) return;
   if (!show) {
     chat.classList.add('is-hidden');
-    $('splitterRight').style.display = 'none';
+    layout.classList.add('chat-collapsed');
   } else {
     chat.classList.remove('is-hidden');
-    $('splitterRight').style.display = '';
-  }
-}
-
-// ---------------- 布局拖拽 ----------------
-function bindLayout() {
-  const layout = $('ojLayout');
-
-  // 左栏宽度
-  dragV($('splitterLeft'), (dx) => {
-    const sb = $('ojSidebar');
-    const w = Math.min(Math.max(sb.offsetWidth + dx, 170), 380);
-    sb.style.width = `${w}px`;
-    localStorage.setItem('oj.sidebarWidth', String(w));
-  }, () => $('ojSidebar').offsetWidth);
-
-  // 右栏宽度（方向相反）
-  dragV($('splitterRight'), (dx) => {
-    const chat = $('ojChat');
-    const w = Math.min(Math.max(chat.offsetWidth - dx, 260), 480);
-    chat.style.width = `${w}px`;
-    localStorage.setItem('oj.chatWidth', String(w));
-  }, () => $('ojChat').offsetWidth);
-
-  // 中栏上下
-  dragH($('splitterH'), (dy) => {
-    const pane = $('problemPane');
-    const maxH = Math.max(140, $('ojWorkspace').clientHeight - 200);
-    const h = Math.min(Math.max(pane.offsetHeight + dy, 120), maxH);
-    pane.style.height = `${h}px`;
-    localStorage.setItem('oj.problemHeight', String(h));
-  }, () => $('problemPane').offsetHeight);
-
-  // 折叠左栏
-  const setSidebar = (hidden) => {
-    $('ojSidebar').classList.toggle('is-hidden', hidden);
-    $('splitterLeft').style.display = hidden ? 'none' : '';
-    $('sidebarFab').classList.toggle('is-hidden', !hidden);
-    localStorage.setItem('oj.sidebarHidden', hidden ? '1' : '0');
-  };
-
-  $('collapseBtn').addEventListener('click', () => setSidebar(true));
-  $('sidebarFab').addEventListener('click', () => setSidebar(false));
-
-  function dragV(handle, onMove, getStart) {
-    if (!handle) return;
-    handle.addEventListener('mousedown', (ev) => {
-      ev.preventDefault();
-      layout.classList.add('is-dragging');
-      let last = ev.clientX;
-      const move = (e) => {
-        onMove(e.clientX - last);
-        last = e.clientX;
-      };
-      const up = () => {
-        layout.classList.remove('is-dragging');
-        document.removeEventListener('mousemove', move);
-        document.removeEventListener('mouseup', up);
-      };
-      document.addEventListener('mousemove', move);
-      document.addEventListener('mouseup', up);
-    });
-  }
-
-  function dragH(handle, onMove, getStart) {
-    if (!handle) return;
-    handle.addEventListener('mousedown', (ev) => {
-      ev.preventDefault();
-      layout.classList.add('is-dragging');
-      let last = ev.clientY;
-      const move = (e) => {
-        onMove(e.clientY - last);
-        last = e.clientY;
-      };
-      const up = () => {
-        layout.classList.remove('is-dragging');
-        document.removeEventListener('mousemove', move);
-        document.removeEventListener('mouseup', up);
-      };
-      document.addEventListener('mousemove', move);
-      document.addEventListener('mouseup', up);
-    });
-  }
-}
-
-function restoreLayout() {
-  const sw = Number(localStorage.getItem('oj.sidebarWidth'));
-  if (sw >= 170 && sw <= 380) $('ojSidebar').style.width = `${sw}px`;
-
-  // 恢复左栏折叠状态
-  if (localStorage.getItem('oj.sidebarHidden') === '1') {
-    $('ojSidebar').classList.add('is-hidden');
-    $('splitterLeft').style.display = 'none';
-    $('sidebarFab').classList.remove('is-hidden');
-  }
-
-  const cw = Number(localStorage.getItem('oj.chatWidth'));
-  if (cw >= 260 && cw <= 480) $('ojChat').style.width = `${cw}px`;
-
-  const ph = Number(localStorage.getItem('oj.problemHeight'));
-  if (ph > 100) $('problemPane').style.height = `${ph}px`;
-  else {
-    const ws = $('ojWorkspace');
-    if (ws) $('problemPane').style.height = `${Math.round(ws.clientHeight * 5 / 11)}px`;
+    layout.classList.remove('chat-collapsed');
   }
 }
 

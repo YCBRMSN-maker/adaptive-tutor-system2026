@@ -1,4 +1,5 @@
 # backend/app/services/dynamic_controller.py
+import asyncio
 import json
 import logging
 from typing import Any, Optional
@@ -240,10 +241,11 @@ class DynamicController:
             )
 
             # 步骤6: 调用LLM
-            #TODO:done表示流式输出是否完成    elapsed:表示当前已经输出多少字
-            ai_response = await self.llm_gateway.get_completion(
+            # 网关只提供同步实现，放到线程里跑，避免阻塞事件循环
+            ai_response = await asyncio.to_thread(
+                self.llm_gateway.get_completion_sync,
                 system_prompt=system_prompt,
-                messages=messages
+                messages=messages,
             )
             # 步骤7: 构建响应（只包含AI回复内容，符合TDD-II-10设计）
             response = ChatResponse(ai_response=ai_response)

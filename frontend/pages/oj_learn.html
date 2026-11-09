@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sync-PBL学习平台 - 算法学习</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/oj-learn.css">
+  <script src="../js/modules/iconify-icon.min.js"></script>
+</head>
+
+<body class="oj-learn-page">
+  <div class="main-container">
+    <!-- 顶部标题栏：复用主站 top-header-lean -->
+    <header class="top-header-lean">
+      <h1 class="header-title" id="headerTitle">
+        <iconify-icon icon="mdi:book-education" width="24" height="24"></iconify-icon>
+        <span id="chapterTitle">算法学习</span>
+      </h1>
+      <div class="user-profile">
+        <button class="back-button" id="prevChapterBtn" title="上一章">
+          <iconify-icon icon="mdi:chevron-left" width="20" height="20"></iconify-icon>
+          上一章
+        </button>
+        <button class="back-button" id="nextChapterBtn" title="下一章">
+          下一章
+          <iconify-icon icon="mdi:chevron-right" width="20" height="20"></iconify-icon>
+        </button>
+        <button class="back-button" id="backButton">
+          <iconify-icon icon="mdi:arrow-left" width="20" height="20"></iconify-icon>
+          返回
+        </button>
+        <iconify-icon icon="mdi:account-circle" width="36" height="36"></iconify-icon>
+      </div>
+    </header>
+
+    <!-- 内容区：左侧上下两块，右侧 AI 助教 -->
+    <div class="content-container oj-learn-layout">
+      <div class="oj-learn-left">
+        <!-- 上块：知识点讲解 -->
+        <section class="panel oj-knowledge-panel">
+          <div class="panel-header">
+            <div class="oj-panel-title">
+              <iconify-icon icon="mdi:book-open-variant" width="18" height="18"></iconify-icon>
+              <h2>知识点讲解</h2>
+            </div>
+            <span class="oj-badge" id="chapterBadge"></span>
+          </div>
+          <div class="panel-content oj-knowledge-content" id="knowledgeContent">
+            <div class="oj-loading">加载知识点…</div>
+          </div>
+        </section>
+
+        <div class="oj-learn-splitter"></div>
+
+        <!-- 下块：渐进式题目 -->
+        <section class="panel oj-problems-panel">
+          <div class="panel-header">
+            <div class="oj-panel-title">
+              <iconify-icon icon="mdi:format-list-numbered" width="18" height="18"></iconify-icon>
+              <h2>渐进式题目</h2>
+            </div>
+            <span class="oj-badge" id="problemCount"></span>
+          </div>
+          <div class="panel-content oj-problems-content" id="problemCards">
+            <div class="oj-loading">加载题目…</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- 右侧：AI 助教 -->
+      <aside class="panel oj-chat-panel">
+        <div class="panel-header">
+          <div class="oj-panel-title">
+            <iconify-icon icon="mdi:robot-happy-outline" width="18" height="18"></iconify-icon>
+            <h2>AI 助教</h2>
+          </div>
+        </div>
+        <!-- 结构与主站 test_page 一致，直接由 chat.js 驱动 -->
+        <div class="chat-history">
+          <div class="ai-chat-messages" id="ai-chat-messages"></div>
+          <div class="ai-chat-input">
+            <textarea id="user-message" placeholder="在这里输入你的问题..."></textarea>
+            <button type="button" id="send-message" class="btn btn-primary">
+              <iconify-icon icon="mdi:send" width="16" height="16"></iconify-icon>
+              提问
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module" src="../js/pages/ojLearnPage.js"></script>
+</body>
+
+</html>

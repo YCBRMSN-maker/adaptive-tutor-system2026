@@ -1,0 +1,382 @@
+/* =========================================================
+   算法课程入口页（oj_graph.html）
+   左：知识图谱（cytoscape，复用 graph_renderer）
+   右：章节目录
+   ========================================================= */
+
+.oj-graph-page .top-header-lean {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--header-height);
+  padding: 0 var(--spacing-lg);
+}
+
+.oj-graph-page .top-header-lean:hover {
+  height: var(--header-height);
+}
+
+.oj-graph-page .header-title {
+  font-size: var(--title-font-size);
+}
+
+/* ---------- 目录页：左目录 + 右统计 ---------- */
+.oj-catalog-layout {
+  display: flex;
+  gap: var(--spacing-md);
+  min-height: 0;
+}
+
+.oj-catalog-layout .oj-catalog-panel {
+  flex: 1 1 64%;
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.oj-catalog-layout .oj-stats-panel {
+  flex: 0 0 33%;
+  min-width: 286px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.oj-catalog-layout .oj-catalog-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+  align-content: start;
+}
+
+/* ---------- 学习概览 ---------- */
+.oj-stats-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+}
+
+.oj-stat-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.oj-stat {
+  flex: 1;
+  text-align: center;
+  background: var(--ai-message-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 6px;
+}
+
+.oj-stat-num {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary-color);
+  line-height: 1.2;
+}
+
+.oj-stat-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-light);
+}
+
+.oj-progress-wrap {
+  margin-bottom: var(--spacing-lg);
+}
+
+.oj-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  color: var(--text-light);
+  margin-bottom: 6px;
+}
+
+.oj-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ai-message-bg);
+  overflow: hidden;
+}
+
+.oj-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+  transition: width 0.5s ease;
+}
+
+.oj-recent-head {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: var(--spacing-sm);
+}
+
+.oj-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oj-recent-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: var(--font-size-sm);
+}
+
+.oj-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--text-light);
+}
+
+.oj-dot[data-ok="1"] {
+  background: var(--success-color);
+}
+
+.oj-recent-title {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oj-recent-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-light);
+  flex: none;
+}
+
+/* ---------- 全屏图谱页：单栏铺满 ---------- */
+.oj-graph-full-layout {
+  display: flex;
+  min-height: 0;
+}
+
+.oj-graph-full-layout .oj-graph-panel {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+/* ---------- 两栏布局：图谱略宽 ---------- */
+.oj-graph-layout {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: stretch;
+  min-height: 0;
+}
+
+.oj-graph-panel {
+  flex: 1 1 58%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 0;
+}
+
+.oj-catalog-panel {
+  flex: 0 0 40%;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 0;
+}
+
+.oj-graph-layout .panel-header {
+  max-height: none;
+  min-height: 44px;
+  padding: 8px var(--spacing-md);
+  flex: none;
+}
+
+.oj-panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.oj-panel-title h2 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin: 0;
+}
+
+.oj-badge {
+  font-size: var(--font-size-xs);
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  white-space: nowrap;
+}
+
+.oj-graph-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.oj-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.oj-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+/* ---------- 图谱区 ---------- */
+.oj-graph-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #f8fafc;
+  border-radius: 0 0 var(--border-radius-lg) var(--border-radius-lg);
+  overflow: hidden;
+}
+
+.oj-cy {
+  width: 100%;
+  height: 100%;
+}
+
+.oj-graph-tip {
+  position: absolute;
+  left: var(--spacing-md);
+  bottom: var(--spacing-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border-color);
+  color: var(--text-light);
+  font-size: var(--font-size-xs);
+  pointer-events: none;
+}
+
+/* ---------- 目录 ---------- */
+.oj-catalog-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oj-cat-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+
+.oj-cat-item:hover {
+  border-color: var(--primary-color);
+  background: var(--ai-message-bg);
+}
+
+.oj-cat-no {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.oj-cat-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.oj-cat-title {
+  font-size: var(--font-size-sm);
+  color: var(--text-color);
+  font-weight: 500;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oj-cat-sub {
+  font-size: var(--font-size-xs);
+  color: var(--text-light);
+  display: block;
+  margin-top: 2px;
+}
+
+.oj-cat-arrow {
+  flex: none;
+  color: var(--text-light);
+}
+
+.oj-loading {
+  color: var(--text-light);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 1100px) {
+  .oj-graph-layout {
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
+
+  .oj-graph-panel {
+    flex: none;
+    min-height: 380px;
+  }
+
+  .oj-catalog-panel {
+    flex: none;
+    max-width: 100%;
+    min-height: 320px;
+  }
+}

@@ -479,10 +479,13 @@ class UserStateService:
             try:
                 current_help_requests = self.redis_client.json().get(key, '.behavior_patterns.help_requests')
             except Exception:
-                # 字段不存在，设置为0
+                current_help_requests = None
+
+            # 字段缺失或值为 null 时先归零，避免 None + 1
+            if current_help_requests is None:
                 self.redis_client.json().set(key, '.behavior_patterns.help_requests', 0)
                 current_help_requests = 0
-            
+
             # 递增求助计数
             new_help_requests = current_help_requests + 1
             set_dict['.behavior_patterns.help_requests'] = new_help_requests
@@ -493,10 +496,12 @@ class UserStateService:
                 try:
                     current_question_count = self.redis_client.json().get(key, f'.behavior_patterns["{counter_key}"]')
                 except Exception:
-                    # 字段不存在，设置为0
+                    current_question_count = None
+
+                if current_question_count is None:
                     self.redis_client.json().set(key, f'.behavior_patterns["{counter_key}"]', 0)
                     current_question_count = 0
-                
+
                 # 递增提问计数
                 new_question_count = current_question_count + 1
                 set_dict[f'.behavior_patterns["{counter_key}"]'] = new_question_count
@@ -548,10 +553,12 @@ class UserStateService:
                 try:
                     current_count = self.redis_client.json().get(key, f'.behavior_patterns.{counter_key}')
                 except Exception:
-                    # 字段不存在，设置为0
+                    current_count = None
+
+                if current_count is None:
                     self.redis_client.json().set(key, f'.behavior_patterns.{counter_key}', 0)
                     current_count = 0
-                
+
                 # 递增计数
                 new_count = current_count + 1
                 self.redis_client.json().set(key, f'.behavior_patterns.{counter_key}', new_count)

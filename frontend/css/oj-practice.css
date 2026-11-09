@@ -1,0 +1,314 @@
+/* =========================================================
+   算法练习页（oj.html）布局
+   结构对齐主站 test_page.html：左栏题目要求+测试结果，中栏编辑器，右栏修改建议
+   组件样式复用 oj.css（编辑器、判题结果、聊天），本文件只处理布局与容器
+   ========================================================= */
+
+/* ---------- 顶栏：与主站一致，绝对定位浮在内容上方 ----------
+   content-container 已有 padding-top 为其留位，这里不能再改成 relative，
+   否则顶栏进入文档流，会和那段 padding 叠加出一大片空白 */
+.oj-practice-page .top-header-lean {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--header-height);
+  padding: 0 var(--spacing-lg);
+}
+
+.oj-practice-page .top-header-lean:hover {
+  height: var(--header-height);
+}
+
+.oj-practice-page .header-title {
+  font-size: var(--title-font-size);
+}
+
+/* ---------- 三栏容器 ---------- */
+.oj-practice-layout {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: stretch;
+  min-height: 0;
+}
+
+.oj-practice-layout .left-panel {
+  flex: 0 0 26%;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.oj-practice-layout .mid-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.oj-practice-layout .oj-chat-panel {
+  flex: 0 0 28%;
+  min-width: 262px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.oj-practice-layout .panel {
+  margin: 0;
+  min-height: 0;
+}
+
+/* ---------- 面板标题 ---------- */
+.oj-panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.oj-panel-title h2 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin: 0;
+}
+
+.oj-panel-meta {
+  font-size: var(--font-size-xs);
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.oj-practice-layout .panel-header {
+  max-height: none;
+  min-height: 44px;
+  padding: 8px var(--spacing-md);
+  flex: none;
+}
+
+/* ---------- 左栏两块 ---------- */
+.oj-problem-panel {
+  flex: 0 0 52%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.oj-result-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.oj-problem-body,
+.oj-result-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+}
+
+.oj-result-footer {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px var(--spacing-md) var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.oj-result-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  height: 100%;
+  color: var(--text-light);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  padding: var(--spacing-lg) 0;
+}
+
+.oj-result-placeholder p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+/* ---------- 判题结果在窄左栏内的排版 ----------
+   原来的多列横排在 280px 宽度下会被压成逐字换行，
+   这里统一改成可换行或竖排 */
+.oj-diag-head {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.oj-warn-item {
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+}
+
+.oj-warn-item > span:nth-child(2) {
+  order: -1;
+}
+
+.oj-case {
+  flex-wrap: wrap;
+  gap: 4px 9px;
+}
+
+.oj-ai-item-head {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+/* 编译器原始报错单独成段，避免和说明混在一起被折行拆开 */
+.oj-raw {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.6;
+  opacity: 0.72;
+  word-break: break-word;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+}
+
+/* ---------- 中栏编辑器 ---------- */
+.oj-editor-panel {
+  min-height: 0;
+}
+
+.oj-editor-panel .oj-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Monaco 容器撑满中栏 */
+.oj-monaco {
+  width: 100%;
+  height: 100%;
+}
+
+/* 错误 / 警告 / AI 定位行的整行底色与左侧圆点 */
+.oj-line-err { background: rgba(239, 68, 68, 0.08); }
+.oj-line-warn { background: rgba(234, 179, 8, 0.10); }
+.oj-line-ai { background: rgba(249, 115, 22, 0.08); }
+
+/* 行号染色（关闭 glyph 边距后用它标记错误行） */
+.oj-ln-err { color: var(--error-color) !important; font-weight: 700; }
+.oj-ln-warn { color: #b45309 !important; font-weight: 700; }
+.oj-ln-ai { color: #ea580c !important; font-weight: 700; }
+
+.oj-editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- 右栏聊天 ---------- */
+.oj-chat-panel .oj-chat-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* 结构与主站 test_page 一致：chat-history 包住消息区与输入区 */
+.oj-chat-panel .chat-history {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.oj-chat-panel .ai-chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+}
+
+/* 输入区：沿用主站 ai-chat-input 的横向布局 */
+.oj-chat-panel .ai-chat-input {
+  align-items: flex-end;
+  gap: var(--spacing-sm);
+  border-top: 1px solid var(--border-color);
+}
+
+.oj-chat-panel .ai-chat-input textarea {
+  flex: 1;
+  min-height: 42px;
+  max-height: 120px;
+  resize: none;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-color);
+  background: var(--card-bg);
+  outline: none;
+}
+
+.oj-chat-panel .ai-chat-input textarea:focus {
+  border-color: var(--primary-color);
+}
+
+.oj-chat-panel .ai-chat-input .btn {
+  flex: none;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- 空态 ---------- */
+.oj-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  height: 100%;
+  color: var(--text-light);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 1200px) {
+  .oj-practice-layout {
+    flex-wrap: wrap;
+    height: auto;
+    overflow: visible;
+  }
+
+  .oj-practice-layout .left-panel,
+  .oj-practice-layout .mid-panel,
+  .oj-practice-layout .oj-chat-panel {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .oj-problem-panel,
+  .oj-result-panel {
+    min-height: 240px;
+  }
+
+  .oj-editor-panel {
+    min-height: 420px;
+  }
+
+  .oj-chat-panel {
+    min-height: 320px;
+  }
+}

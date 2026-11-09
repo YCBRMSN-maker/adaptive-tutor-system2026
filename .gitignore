@@ -101,5 +101,5 @@ frontend/frontend_vue/node_modules
 gha-creds-*.json
 backend/app/db/database.db
 .workbuddy/
-oj/backend/data/syncoj.db
+backend/oj/data/syncoj.db
 CS_Emotion/

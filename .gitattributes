@@ -1,2 +1,5 @@
 *.ann filter=lfs diff=lfs merge=lfs -text
 backend/app/data/vector_store/kb.ann filter=lfs diff=lfs merge=lfs -text
+
+# OJ 判题容器入口脚本必须是 LF，CRLF 会导致 shebang 解析失败
+backend/oj/entrypoint.sh text eol=lf

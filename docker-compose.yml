@@ -138,10 +138,13 @@ services:
       - backend
     restart: unless-stopped
 
-  # 在线判题系统（SyncOJ 后端）—— 独立容器，判题需要 gcc，不并入主 backend
+  # 在线判题系统（SyncOJ 后端）—— 独立容器
+  # 不并入主 backend 的理由是安全隔离，，判题要执行学生提交的不可信代码
+  # （死循环 / fork 炸弹 / 超大 malloc），靠容器边界 + 下面的资源上限把爆炸半径限制在这一个容器里。
+  # 顺带说明：主 backend 镜像（Dockerfile.backend:19-22）本来就装了 g++ 和 make。
   oj-backend:
     build:
-      context: ./oj/backend
+      context: ./backend/oj
       dockerfile: Dockerfile
     container_name: ats-oj-backend
     ports:
@@ -149,10 +152,19 @@ services:
     environment:
       # 复用主站 .env 里的 TUTOR_OPENAI_* 配置，避免两处填同一个 key
       - DEEPSEEK_API_KEY=${TUTOR_OPENAI_API_KEY:-}
-      - DEEPSEEK_MODEL=${TUTOR_OPENAI_MODEL:-deepseek-chat}
+      # 主站的 TUTOR_OPENAI_MODEL 是推理模型（content 为空，内容在 reasoning_content），
+      # OJ 的解析只取 content，所以这里单独用对话模型
+      - DEEPSEEK_MODEL=${OJ_DEEPSEEK_MODEL:-deepseek-chat}
       - DEEPSEEK_BASE_URL=${TUTOR_OPENAI_API_BASE:-https://api.deepseek.com}
     volumes:
       - oj_data:/app/data
+    # 资源上限：判题被打爆时只影响这个容器，不会把宿主机和主站拖下水。
+    # 容量参考：单次判题的学生进程 RLIMIT_AS=256MB，gcc 编译峰值约 200~300MB，
+    # 2g 大约够 4~6 路并发提交；并发再高就调大 mem_limit / cpus。
+    mem_limit: 2g
+    memswap_limit: 2g      # 不给 swap：超限直接 OOM kill，而不是让整台机器卡住
+    cpus: 2
+    pids_limit: 256        # 容器级进程数兜底（进程内另有 RLIMIT_NPROC=64 防线）
     restart: unless-stopped
 
   # 前端服务

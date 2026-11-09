@@ -191,6 +191,18 @@ def _find_unclosed_braces(source: str) -> tuple[list[int], int, int]:
     return stack, opens, closes
 
 
+_CJK_PUNCT_TAIL = ("；", "，", "。", "）", "】", "、")
+
+
+def _ends_with_cjk_punct(line: str) -> bool:
+    """这一行去掉 // 注释后，是否以中文全角标点结尾。
+
+    只看行尾，避免把字符串或注释里的全角字符误判成语法错误。
+    """
+    code = line.split("//")[0].rstrip()
+    return code.endswith(_CJK_PUNCT_TAIL)
+
+
 def _find_fix_line(source: str, err_line: int) -> int:
     """编译器把缺分号报在 err_line，真正要改的一般是上面最近的一条有效语句。
 
@@ -257,17 +269,28 @@ def parse_diagnostics(stderr: str, source: str = "", keep_warning: bool = False)
 
             # 缺分号的定位修正：
             # 编译器通常要读到下一条语句才发现"上一行没结束"，报错行往往不是该改的行。
-            # 判据：本行代码末尾已经有分号 → 问题在上一行。
-            if category == "missing_semicolon" and _code_of(snippet).rstrip().endswith(";"):
+            # 判据：本行代码末尾已经有分号（半角或全角）→ 问题在上一行。
+            # 全角也要算：学生把「；」打上去时以为自己写完了，实际编译器不认。
+            if category == "missing_semicolon" and _code_of(snippet).rstrip().endswith((";", "；")):
                 fix = _find_fix_line(source, item["line"])
                 if fix and fix != item["line"]:
                     item["fix_line"] = fix
-                    type_zh = "缺少分号（在上一行）"
-                    explain = (
-                        f"编译器把错误报在第 {item['line']} 行，但那一行本身是有分号的。"
-                        f"真正要改的是第 {fix} 行——那条语句没有用分号结束，"
-                        f"编译器一直读到第 {item['line']} 行才发现不对。"
-                    )
+                    lines = source.splitlines()
+                    prev = lines[fix - 1] if 0 < fix <= len(lines) else ""
+                    if _ends_with_cjk_punct(prev):
+                        type_zh = "用了中文标点"
+                        explain = (
+                            f"第 {fix} 行末尾标点是中文全角字符（比如「；」），"
+                            f"C 语言只认英文半角「;」。把输入法切到英文，"
+                            f"删掉那个符号重新打一次即可。"
+                        )
+                    else:
+                        type_zh = "缺少分号（在上一行）"
+                        explain = (
+                            f"编译器把错误报在第 {item['line']} 行，但那一行本身是有分号的。"
+                            f"真正要改的是第 {fix} 行——那条语句没有用分号结束，"
+                            f"编译器一直读到第 {item['line']} 行才发现不对。"
+                        )
                 else:
                     type_zh = "语句没有正确结束"
                     explain = ("这一行本身已经有分号了，问题多半在上一行的括号没有闭合、"

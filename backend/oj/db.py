@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS submissions (
     detail      TEXT DEFAULT '{}',
     time_ms     INTEGER DEFAULT 0,
     memory_kb   INTEGER DEFAULT 0,
-    created_at  TEXT NOT NULL
+    created_at  TEXT NOT NULL,
+    participant_id TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_sub_problem ON submissions(problem_id, created_at DESC);
@@ -70,6 +71,16 @@ def connect() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+
+        # 兼容老版本数据库：submissions 早期没有 participant_id
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(submissions)")}
+        if "participant_id" not in cols:
+            conn.execute("ALTER TABLE submissions ADD COLUMN participant_id TEXT DEFAULT ''")
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sub_participant "
+            "ON submissions(participant_id, problem_id, created_at DESC)"
+        )
 
 
 # ------------------------------------------------------------------ 题目
@@ -143,14 +154,15 @@ def count_problems() -> int:
 
 # ------------------------------------------------------------------ 提交
 
-def create_submission(problem_id: int, language: str, code: str) -> str:
+def create_submission(problem_id: int, language: str, code: str, participant_id: str = "") -> str:
     sid = uuid.uuid4().hex
     now = datetime.now(timezone.utc).isoformat()
     with connect() as conn:
         conn.execute(
-            "INSERT INTO submissions (id, problem_id, language, code, status, message, created_at) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (sid, problem_id, language, code, "Pending", "排队中", now),
+            "INSERT INTO submissions "
+            "(id, problem_id, language, code, status, message, created_at, participant_id) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (sid, problem_id, language, code, "Pending", "排队中", now, participant_id or ""),
         )
     return sid
 
@@ -188,6 +200,24 @@ def get_submission_code(sid: str) -> str | None:
     with connect() as conn:
         row = conn.execute("SELECT code FROM submissions WHERE id = ?", (sid,)).fetchone()
     return row["code"] if row else None
+
+
+def submission_summary(participant_id: str) -> list[dict]:
+    """按题目汇总某个学生的提交：尝试次数、是否 AC 过、最后一次时间。"""
+    if not participant_id:
+        return []
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT problem_id,
+                      COUNT(*) AS attempts,
+                      MAX(CASE WHEN status = 'AC' THEN 1 ELSE 0 END) AS solved,
+                      MAX(created_at) AS last_at
+               FROM submissions
+               WHERE participant_id = ?
+               GROUP BY problem_id""",
+            (participant_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def recent_submissions(limit: int = 20) -> list[dict]:

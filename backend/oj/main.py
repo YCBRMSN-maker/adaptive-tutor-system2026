@@ -48,6 +48,7 @@ class SubmitRequest(BaseModel):
     problem_id: int
     language: str = "C"
     code: str = Field(..., min_length=1)
+    participant_id: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -156,9 +157,15 @@ def submit(req: SubmitRequest, bg: BackgroundTasks) -> dict:
     if not db.get_problem(req.problem_id):
         raise HTTPException(404, "题目不存在")
 
-    sid = db.create_submission(req.problem_id, req.language, req.code)
+    sid = db.create_submission(req.problem_id, req.language, req.code, req.participant_id or "")
     bg.add_task(run_judge, sid, req.problem_id, req.language, req.code)
     return {"submission_id": sid, "status": "Pending"}
+
+
+@app.get("/api/submissions/summary")
+def submissions_summary(participant_id: str) -> list[dict]:
+    """某个学生每道题的最新情况：尝试次数、是否 AC 过。"""
+    return db.submission_summary(participant_id)
 
 
 @app.get("/api/submissions/{sid}")
@@ -229,7 +236,16 @@ def _call_llm(messages: list[dict], max_tokens: int = 900,
     )
     if resp.status_code != 200:
         raise RuntimeError(f"HTTP {resp.status_code} {resp.text[:200]}")
-    return resp.json()["choices"][0]["message"]["content"]
+
+    try:
+        msg = resp.json()["choices"][0]["message"]
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"模型响应格式异常：{resp.text[:200]}") from exc
+
+    content = (msg.get("content") or "").strip()
+    if not content:
+        raise RuntimeError("模型返回空内容（可能用了推理模型或 max_tokens 不足）")
+    return content
 
 
 @app.post("/api/diagnose")

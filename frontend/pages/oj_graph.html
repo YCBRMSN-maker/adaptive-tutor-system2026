@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sync-PBL学习平台 - 算法课程</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/oj-graph.css">
+  <script src="../js/modules/iconify-icon.min.js"></script>
+</head>
+
+<body class="oj-graph-page">
+  <div class="main-container">
+    <header class="top-header-lean">
+      <h1 class="header-title" id="headerTitle">
+        <iconify-icon icon="mdi:sitemap" width="24" height="24"></iconify-icon>
+        C 语言算法课程
+      </h1>
+      <div class="user-profile">
+        <button class="back-button" id="graphButton">
+          <iconify-icon icon="mdi:graph-outline" width="20" height="20"></iconify-icon>
+          知识图谱
+        </button>
+        <button class="back-button" id="backButton">
+          <iconify-icon icon="mdi:arrow-left" width="20" height="20"></iconify-icon>
+          返回课程
+        </button>
+        <iconify-icon icon="mdi:account-circle" width="36" height="36"></iconify-icon>
+      </div>
+    </header>
+
+    <div class="content-container oj-catalog-layout">
+      <!-- 左：章节目录 -->
+      <section class="panel oj-catalog-panel">
+        <div class="panel-header">
+          <div class="oj-panel-title">
+            <iconify-icon icon="mdi:format-list-bulleted" width="18" height="18"></iconify-icon>
+            <h2>章节目录</h2>
+          </div>
+          <span class="oj-badge" id="catalogCount"></span>
+        </div>
+        <div class="panel-content oj-catalog-body" id="catalog">
+          <div class="oj-loading">加载章节…</div>
+        </div>
+      </section>
+
+      <!-- 右：学习概览 -->
+      <aside class="panel oj-stats-panel">
+        <div class="panel-header">
+          <div class="oj-panel-title">
+            <iconify-icon icon="mdi:chart-donut" width="18" height="18"></iconify-icon>
+            <h2>学习概览</h2>
+          </div>
+        </div>
+
+        <div class="oj-stats-body">
+          <div class="oj-stat-row">
+            <div class="oj-stat">
+              <span class="oj-stat-num" id="statSolved">-</span>
+              <span class="oj-stat-label">已通过</span>
+            </div>
+            <div class="oj-stat">
+              <span class="oj-stat-num" id="statTotal">-</span>
+              <span class="oj-stat-label">总题数</span>
+            </div>
+            <div class="oj-stat">
+              <span class="oj-stat-num" id="statAttempts">-</span>
+              <span class="oj-stat-label">提交次数</span>
+            </div>
+          </div>
+
+          <div class="oj-progress-wrap">
+            <div class="oj-progress-label">
+              <span>完成进度</span>
+              <span id="statRate">0%</span>
+            </div>
+            <div class="oj-progress-track">
+              <div class="oj-progress-fill" id="statFill"></div>
+            </div>
+          </div>
+
+          <div class="oj-recent-head">最近的提交</div>
+          <div class="oj-recent-list" id="recentList">
+            <div class="oj-loading">暂无记录</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module" src="../js/pages/ojGraphPage.js"></script>
+</body>
+
+</html>

@@ -111,9 +111,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     console.log('[开始学习] 课程 id =', courseId, ' 返回码 =', result.code);
 
-                    // C语言程序设计：会话创建成功后直接进入在线判题
+                    // C语言程序设计：会话创建成功后进入算法学习页（知识点 + 题目卡片）
                     if (courseId === 'c-programming') {
-                        window.location.href = '/pages/oj.html';
+                        window.location.href = '/pages/oj_graph.html';
                         return;
                     }
 

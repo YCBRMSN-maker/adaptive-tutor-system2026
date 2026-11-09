@@ -1,0 +1,461 @@
+/* =========================================================
+   算法学习页（oj_learn.html）
+   复用 styles.css 的变量与 .panel / .panel-header / .panel-content
+   本文件只补三栏比例、知识讲解排版、题目卡片
+   ========================================================= */
+
+/* ---------- 布局：左 68% 右 32%，左侧上下两块 ---------- */
+.oj-learn-layout {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.oj-learn-left {
+  flex: 1 1 68%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.oj-chat-panel {
+  flex: 0 0 32%;
+  max-width: 32%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 题目数量不固定，让面板按内容自适应，剩余空间全部给知识点面板 */
+.oj-knowledge-panel {
+  flex: 1 1 auto;
+}
+
+.oj-problems-panel {
+  flex: 0 0 auto;
+  min-height: 210px;
+  max-height: 46%;
+}
+
+.oj-knowledge-panel,
+.oj-problems-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.oj-learn-splitter {
+  height: var(--spacing-md);
+  flex: none;
+}
+
+/* ---------- 面板标题 ---------- */
+.oj-panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.oj-panel-title h2 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin: 0;
+}
+
+.oj-badge {
+  font-size: var(--font-size-xs);
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  white-space: nowrap;
+}
+
+.oj-loading {
+  color: var(--text-light);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- 知识讲解内容 ---------- */
+.oj-knowledge-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.oj-knowledge-content h3 {
+  font-size: var(--font-size-lg);
+  color: var(--text-color);
+  margin: 0 0 var(--spacing-sm);
+  font-weight: 600;
+}
+
+.oj-knowledge-content p {
+  font-size: var(--font-size-sm);
+  line-height: 1.85;
+  color: var(--text-color);
+  margin: 0 0 var(--spacing-md);
+}
+
+.oj-knowledge-content ul {
+  margin: 0 0 var(--spacing-md);
+  padding-left: 20px;
+}
+
+.oj-knowledge-content li {
+  font-size: var(--font-size-sm);
+  line-height: 1.85;
+  color: var(--text-color);
+  margin-bottom: 6px;
+}
+
+.oj-knowledge-content code {
+  background: var(--ai-message-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 13px;
+  color: var(--primary-hover);
+}
+
+.oj-k-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.oj-k-section:last-child {
+  margin-bottom: 0;
+}
+
+.oj-k-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-sm);
+}
+
+.oj-code-block {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: var(--spacing-md);
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0;
+}
+
+.oj-pitfall-list li {
+  color: var(--error-color);
+}
+
+/* ---------- 题目卡片 ---------- */
+.oj-problems-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.oj-card-flow {
+  display: flex;
+  align-items: stretch;
+  gap: 40px;
+  padding: var(--spacing-sm) 2px;
+  overflow-x: auto;
+  /* 上下 auto 让卡片整体在下方面板内垂直居中；内容超出时自动退化为从顶部开始 */
+  margin: auto 0;
+}
+
+.oj-problem-card {
+  /* 宽度随数量自适应：2 张时撑到 240，3 张时压到 196 左右，超出面板再横向滚动 */
+  flex: 1 1 0;
+  min-width: 158px;
+  max-width: 240px;
+  min-height: 148px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  background: var(--card-bg);
+  padding: var(--spacing-lg) var(--spacing-md);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  text-align: center;
+  justify-content: center;
+}
+
+/* 水平居中：首尾卡片各吃一份剩余空间，溢出时自动退化为靠左 */
+.oj-problem-card:first-child {
+  margin-left: auto;
+}
+
+.oj-problem-card:last-child {
+  margin-right: auto;
+}
+
+/* 卡片之间的箭头，和主站渐进式知识点展示一致 */
+.oj-problem-card:not(:last-child)::after {
+  content: '→';
+  position: absolute;
+  right: -32px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-color);
+  pointer-events: none;
+}
+
+.oj-problem-card:hover {
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-medium);
+  transform: translateY(-2px);
+}
+
+.oj-problem-card.is-open {
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-medium);
+}
+
+.oj-card-level {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-color);
+  line-height: 1.5;
+}
+
+.oj-card-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-light);
+  line-height: 1.6;
+}
+
+.oj-card-enter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--primary-color);
+  margin-top: 6px;
+}
+
+/* 卡片展开：整块替换为题目详情（对齐主站渐进式卡片的展开方式） */
+.oj-card-detail {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.oj-detail-head {
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: var(--spacing-md);
+}
+
+.oj-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  padding: 0 0 var(--spacing-sm);
+}
+
+.oj-back-link:hover {
+  color: var(--primary-hover);
+}
+
+.oj-detail-title {
+  text-align: center;
+}
+
+.oj-detail-level {
+  font-size: var(--font-size-xs);
+  color: var(--text-light);
+}
+
+.oj-detail-title h3 {
+  margin: 4px 0 0;
+  font-size: var(--font-size-xl);
+  color: var(--text-color);
+}
+
+.oj-detail-body {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  line-height: 1.8;
+  color: var(--text-color);
+}
+
+.oj-card-detail .oj-detail-body p {
+  margin: 0 0 var(--spacing-sm);
+}
+
+.oj-sample {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+}
+
+.oj-sample-box {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.oj-sample-box span {
+  display: block;
+  font-size: var(--font-size-xs);
+  padding: 4px 10px;
+  background: var(--ai-message-bg);
+  color: var(--text-light);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.oj-sample-box pre {
+  margin: 0;
+  padding: 10px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  color: var(--text-color);
+}
+
+.oj-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.oj-btn {
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-color);
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.oj-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.oj-btn-primary {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+}
+
+.oj-btn-primary:hover {
+  background: var(--primary-hover);
+  color: #fff;
+}
+
+/* ---------- AI 助教 ---------- */
+.oj-chat-panel .chat-history {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.oj-chat-panel .ai-chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+}
+
+.oj-chat-panel .ai-chat-input {
+  flex: none;
+  align-items: flex-end;
+  gap: var(--spacing-sm);
+  border-top: 1px solid var(--border-color);
+}
+
+.oj-chat-panel .ai-chat-input textarea {
+  flex: 1;
+  min-height: 42px;
+  max-height: 120px;
+  resize: none;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-color);
+  background: var(--card-bg);
+  outline: none;
+}
+
+.oj-chat-panel .ai-chat-input textarea:focus {
+  border-color: var(--primary-color);
+}
+
+.oj-chat-panel .ai-chat-input .btn {
+  flex: none;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+
+.oj-chat-input textarea {
+  flex: 1;
+  resize: none;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  color: var(--text-color);
+  background: var(--card-bg);
+  outline: none;
+}
+
+.oj-chat-input textarea:focus {
+  border-color: var(--primary-color);
+}
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 1100px) {
+  .oj-learn-layout {
+    flex-direction: column;
+  }
+
+  .oj-chat-panel {
+    flex: none;
+    max-width: 100%;
+    min-height: 320px;
+  }
+
+  .oj-knowledge-panel,
+  .oj-problems-panel {
+    min-height: 280px;
+  }
+}

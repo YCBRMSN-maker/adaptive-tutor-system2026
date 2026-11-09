@@ -11,6 +11,14 @@ from __future__ import annotations
 # (pattern, category, type_zh, explain, knowledge)
 RULES: list[tuple[str, str, str, str, str]] = [
     # ---------------- 语法：符号缺失 / 不配对 ----------------
+    # GCC 遇到"上一条语句没结束"时，会把错误报在下一行第一个标识符处，
+    # 文案形如：expected '=', ',', ';', 'asm' or '__attribute__' before 'scanf'
+    # 这种情况真正要改的是上一行末尾，归到 missing_semicolon 交给 fix_line 修正
+    (r"expected '=', ',', ';', 'asm' or '__attribute__' before", "missing_semicolon",
+     "缺少分号",
+     "编译器读到这里才发现上一条语句没有结束。真正要改的是上一行末尾——那一行少了分号 ;",
+     "语句结束符"),
+
     (r"expected ';'|expected ',' or ';'", "missing_semicolon",
      "缺少分号",
      "这一行的语句写完后少了分号 ;，编译器会把它和下一行当成同一条语句。",
